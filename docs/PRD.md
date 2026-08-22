@@ -7,7 +7,7 @@
 >
 > **Decisões registradas nesta revisão:** o **`canal-service` nasce neste
 > módulo** (adapter WhatsApp com drivers Evolution + Z-API implementados e Meta
-> como interface/aula — `00` §4.8; API oficial da Meta no roadmap §17) ·
+> como interface/aula — `00` §4.8; API oficial da Meta no roadmap §18) ·
 > **Google Calendar é a integração-base de calendário** (RF-12): push via API +
 > leitura de ocupado (busy-read), com OAuth; sincronização bidirecional completa
 > fica no roadmap; o feed .ics (RF-11) permanece como opção sem OAuth ·
@@ -41,11 +41,11 @@ os verticais brasileiros de serviço (Trinks, Booksy). O inventário honesto:
 | Feed de calendário (.ics) para ver tudo no Google/Apple | Calendly | ✅ somente-leitura, para quem não conectar OAuth | RF-11 |
 | Integração Google Calendar (evento aparece na hora) | Calendly, Cal.com | ✅ **push via API + busy-read** — a base de integração, porque é o calendário que a maioria dos alunos já usa | RF-12 |
 | **Link público de auto-agendamento** | Calendly (o produto inteiro) | ✅ **opcional** — a conversa segue sendo a via principal (tese do módulo); o link atende o cliente que prefere clicar | RF-13 |
-| Sincronização bidirecional Google/Outlook | Calendly, Cal.com | ⚠️ parcial — push + busy-read neste módulo; bidirecional completa (editar no Google reflete na agenda) no roadmap | RF-12, §17 |
-| Reserva temporária de slot durante a escolha (hold) | Calendly | ❌ v1 — conflito na confirmação é tratado com alternativas; hold adiciona estado que expira | §17 |
-| Pagamento/caução no agendamento (anti no-show) | Calendly + Stripe | ⚠️ roadmap — o link público já nasce com a configuração de caução (desligada por padrão); a cobrança via Pix vem depois | RF-13, §17 |
+| Sincronização bidirecional Google/Outlook | Calendly, Cal.com | ⚠️ parcial — push + busy-read neste módulo; bidirecional completa (editar no Google reflete na agenda) no roadmap | RF-12, §18 |
+| Reserva temporária de slot durante a escolha (hold) | Calendly | ❌ v1 — conflito na confirmação é tratado com alternativas; hold adiciona estado que expira | §18 |
+| Pagamento/caução no agendamento (anti no-show) | Calendly + Stripe | ⚠️ roadmap — o link público já nasce com a configuração de caução (desligada por padrão); a cobrança via Pix vem depois | RF-13, §18 |
 | Fila de espera automática | Booksy | ✅ — sinergia direta com o canal: cancelou, o próximo recebe WhatsApp | RF-14 |
-| Compromissos recorrentes (toda terça às 10h) | Trinks, Booksy | ✅ recorrência simples; pacotes de sessões no roadmap | RF-15, §17 |
+| Compromissos recorrentes (toda terça às 10h) | Trinks, Booksy | ✅ recorrência simples; pacotes de sessões no roadmap | RF-15, §18 |
 | Importar agendamentos de plataforma externa | Cal.com | ✅ **Calendly, opcional e one-way** — só o Calendly nesta etapa, para simplificar | RF-16 |
 
 ## 3. Objetivo
@@ -80,7 +80,7 @@ visões, zero retrabalho.
 | **Cliente final** | "Marcar sem baixar app, no WhatsApp, na hora que lembrei" | Manda mensagem em linguagem natural; recebe lembrete; responde "confirmo" |
 | **Prestador / atendente** | "Ver o dia, bloquear férias, saber quem confirmou" | Consulta o dia (UI ou agente); bloqueia grade; vê o compromisso aparecer **na hora** no seu Google Calendar (RF-12) |
 | **Dono** | "Menos buraco na agenda, menos falta" | Métricas de ocupação e no-show; cobra política de confirmação |
-| **Agente de IA** | Usuário de primeira classe: entende o pedido, checa grade, marca, lembra, remarca | Via `agenda-mcp` (§13) + canal inbound (§9.1) |
+| **Agente de IA** | Usuário de primeira classe: entende o pedido, checa grade, marca, lembra, remarca | Via `agenda-mcp` (§14) + canal inbound (§9.1) |
 
 **Jornada mestra:** cliente manda mensagem (§9.1) → agente entende a intenção e
 a data (§8 IA-01/IA-04) → consulta slots (RF-02/03) → marca sem double-booking
@@ -111,9 +111,11 @@ e feed .ics (RF-11) refletem tudo.
 13. **Integração Calendly, opcional e one-way** (RF-16) — agendamentos feitos
     lá entram na agenda via webhook
 14. **Documentação OpenAPI servida por Scalar** (RF-17) — o contrato público da API
-15. Migração da agenda existente para a nuvem, com histórico preservado
+15. **Telas web** (§12): UI do prestador (agenda, cadastros, integrações,
+    canal, métricas) + páginas públicas — sempre como segundo cliente da API
+16. Migração da agenda existente para a nuvem, com histórico preservado
 
-### 6.2 Fora (ver roadmap em §17)
+### 6.2 Fora (ver roadmap em §18)
 Sincronização bidirecional Google/Outlook (push + busy-read cobrem o módulo;
 bidirecional é roadmap) · hold temporário de slot · cobrança efetiva de
 sinal/caução (Pix — roadmap; a configuração já existe no link público) ·
@@ -200,7 +202,7 @@ Mesmo roteiro do M1 (§4.5 do doc base), aplicado à agenda.
 reconciliados 1:1, nenhum compromisso futuro perdido ou duplicado.
 
 ### RF-09 — Tools do agente
-Definidas no conector MCP (§13). Resumo: 8 tools, escopos `agenda:read` /
+Definidas no conector MCP (§14). Resumo: 8 tools, escopos `agenda:read` /
 `agenda:write` / `agenda:cancel`, cancelamento atrás de confirmação humana.
 
 ### RF-10 — `canal-service` (nasce neste módulo; contrato em `00` §4.8)
@@ -257,7 +259,7 @@ Definidas no conector MCP (§13). Resumo: 8 tools, escopos `agenda:read` /
   fila de retry do espelho de tarefas (RF-07); busy-read usa cache curto e, com
   Google fora do ar, calcula só com dados locais registrando aviso.
 - Bidirecional completa (editar/arrastar o evento no Google reflete na agenda)
-  fica no roadmap (§17) — o evento pushado leva na descrição o aviso "gerencie
+  fica no roadmap (§18) — o evento pushado leva na descrição o aviso "gerencie
   pela agenda".
 - Sem OAuth conectado, tudo funciona como antes: feed .ics (RF-11) é o fallback.
 
@@ -275,7 +277,7 @@ Definidas no conector MCP (§13). Resumo: 8 tools, escopos `agenda:read` /
   com mensagem clara.
 - Na criação do link, configuração **opcional** de caução/sinal — **desligada
   por padrão**; nesta fase o campo apenas informa o valor na página (a cobrança
-  via Pix é roadmap §17).
+  via Pix é roadmap §18).
 - Agendamento pelo link entra com `origem: cliente`, dispara a mesma régua de
   confirmação/lembretes (RF-05) e exige nome + telefone (mínimo LGPD).
 - Rate limit por IP na página pública; sem enumeração de agenda (só slots livres).
@@ -309,7 +311,7 @@ Definidas no conector MCP (§13). Resumo: 8 tools, escopos `agenda:read` /
 - Cancelar distingue **"esta ocorrência"** de **"todas as futuras"** (com
   confirmação humana quando disparado pelo agente, como em RF-06).
 - Pacotes de sessões (10 sessões compradas, controle de saldo) ficam no
-  roadmap (§17).
+  roadmap (§18).
 
 ### RF-16 — Integração Calendly (opcional, one-way)
 
@@ -343,7 +345,7 @@ Definidas no conector MCP (§13). Resumo: 8 tools, escopos `agenda:read` /
 - Toda rota com descrição **prescritiva** (quando chamar, não só o que faz),
   exemplos de request/response e erros documentados no formato
   `{code, message, hint}` — o mesmo texto alimenta as descrições das tools MCP
-  (§13): uma fonte, dois consumidores.
+  (§14): uma fonte, dois consumidores.
 - Rotas com autenticação e escopos explícitos na spec (`agenda:read` /
   `agenda:write` / `agenda:cancel`); rotas públicas (link, .ics, webhooks)
   marcadas como tal.
@@ -445,7 +447,7 @@ Leitura para vincular cliente do agendamento a empresa/contato existente
   free/busy (busy-read). Tokens cifrados, write-only na API, revogados ao
   desconectar.
 - **Push:** criação/movimentação/remoção de evento via API — sem webhook do
-  Google nesta fase (bidirecional é roadmap §17, que aí sim exige webhooks +
+  Google nesta fase (bidirecional é roadmap §18, que aí sim exige webhooks +
   sync tokens).
 - **Busy-read:** consulta free/busy com cache curto (ex.: 60 s) no motor de
   slots; indisponibilidade do Google degrada para cálculo local com aviso.
@@ -458,7 +460,7 @@ Leitura para vincular cliente do agendamento a empresa/contato existente
   verificação de assinatura e idempotência por ID de evento (padrão §9).
 - A agenda **não escreve** no Calendly; importado é marcado `origem: calendly`.
 - Única plataforma de booking externa desta etapa — decisão de simplicidade;
-  outras ficam no roadmap (§17).
+  outras ficam no roadmap (§18).
 
 ---
 
@@ -582,7 +584,7 @@ create table booking_links (          -- RF-13: link público opcional
   service_id uuid not null references services(id),
   resource_id uuid references resources(id),   -- opcional: link por profissional
   slug text not null unique,
-  exige_caucao boolean default false, -- cobrança efetiva (Pix) no roadmap §17
+  exige_caucao boolean default false, -- cobrança efetiva (Pix) no roadmap §18
   valor_caucao numeric(14,2),
   ativo boolean default true,
   created_at timestamptz default now()
@@ -696,7 +698,8 @@ GET  /integracoes/google/conectar     # RF-12: início do OAuth (redirect)
 GET  /integracoes/google/callback     DELETE /integracoes/google/{resource_id}
 GET  /booking-links                   POST /booking-links      # RF-13
 GET  /agendar/{slug}                  # página pública do link (rate limit por IP)
-POST /waitlist                        # RF-14: entrar na fila
+GET  /waitlist?service_id=&status=    # RF-14: fila (tela T-06)
+POST /waitlist                        # entrar na fila
 POST /waitlist/{id}/aceitar           POST /waitlist/{id}/cancelar
 POST /appointments/recorrentes        # RF-15: cria série + ocorrências
 POST /webhooks/calendly               # RF-16 (assinatura verificada)
@@ -716,7 +719,56 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
 
 ---
 
-## 12. Requisitos não funcionais
+## 12. Telas (UI web — Vite + React)
+
+> **Princípio (e conteúdo de aula):** a UI é o **segundo cliente** da API —
+> nasce depois do endpoint, consome as mesmas rotas documentadas no `/docs`
+> (RF-17) e não tem caminho privilegiado: toda ação da tela existe antes como
+> rota autenticada. A operação do dia a dia acontece por conversa; a UI serve
+> para **configurar** (setup) e **supervisionar** (ver, conferir, auditar).
+> SPA em Vite + React (stack canônica, `00` §3.2), autenticada via Supabase
+> Auth — exceto as duas páginas públicas marcadas abaixo.
+
+### 12.1 Telas do prestador (autenticadas)
+
+| # | Tela | Para quê | Rotas principais que consome |
+|---|---|---|---|
+| T-01 | **Login / organização** | Entrar; trocar de organização quando houver mais de uma | Supabase Auth |
+| T-02 | **Agenda do dia/semana** (tela principal) | Ver o dia por recurso: compromissos com status por cor (agendado, confirmado, cancelado, realizado, no-show), risco de no-show visível, buracos evidentes | `GET /agenda/day` · `GET /appointments` |
+| T-03 | **Detalhe do compromisso** | Ficha completa + histórico de alterações (quem, quando, por quê); ações: confirmar, reagendar, cancelar, marcar no-show | `POST /appointments/{id}/…` |
+| T-04 | **Serviços** | Cadastrar/editar serviço: nome, duração, preço, buffers, recursos exigidos | `GET/POST /services` |
+| T-05 | **Grade e bloqueios** | Horário de trabalho semanal por recurso; bloqueios pontuais (férias, feriado, almoço) com motivo | `POST /availability/rules` · `POST /availability/blocks` |
+| T-06 | **Fila de espera** | Ver a fila por serviço/janela: posição, status (aguardando, ofertado, expirado), quem recebeu oferta | `GET /waitlist` (listagem) |
+| T-07 | **Links públicos** | Criar/ativar/desativar links de auto-agendamento; configurar caução (RF-13) | `GET/POST /booking-links` |
+| T-08 | **Integrações** | Conectar/desconectar Google Calendar (botão OAuth + status), gerar/revogar tokens .ics, configurar webhook Calendly | `/integracoes/google/…` · `/ics/tokens` |
+| T-09 | **Canal WhatsApp** | Configurar driver (Evolution/Z-API/Meta), número dedicado, **QR code da Evolution ao vivo**, status da conexão; editar templates de mensagem (versionados) e ver opt-outs | `canal-service` (via backend; nunca direto do navegador) |
+| T-10 | **Métricas** | Os números do §4: ocupação, no-show antes/depois do lembrete, entrega de mensagens, agendamentos por origem (conversa, link, Calendly) | agregações de `GET /appointments` + canal |
+
+### 12.2 Páginas públicas (sem login)
+
+| # | Página | Para quê | Observações |
+|---|---|---|---|
+| P-01 | **`/agendar/{slug}`** (RF-13) | Cliente escolhe serviço → vê slots livres → informa nome + telefone → agenda | Mesmo motor `GET /slots`; rate limit por IP; coleta mínima (LGPD §13); mostra valor da caução quando configurada |
+| P-02 | **`/ics/{token}.ics`** (RF-11) | Feed de calendário assinável | Não é tela navegável — URL para o app de calendário |
+
+### 12.3 Critérios de aceite
+
+- Nenhuma tela chama o banco ou lógica própria de negócio: **toda ação passa
+  pela API pública documentada** — deletar a UI inteira não remove nenhuma
+  capacidade do sistema (teste de aula: tudo que a tela faz, o agente faz).
+- T-02 reflete mudanças feitas por conversa **sem exigir refresh manual**
+  (polling simples basta; websocket não é requisito).
+- Ações destrutivas na UI (cancelar, desativar link, revogar token) pedem
+  confirmação — o mesmo gradiente de risco do agente vale para o humano.
+- T-09 nunca exibe credenciais gravadas (write-only, `00` §4.8).
+- Responsivo o suficiente para o prestador consultar T-02 no celular; a UI de
+  cadastro (T-04, T-05) pode assumir desktop.
+- A página pública P-01 funciona sem JavaScript pesado e carrega em < 2 s em 4G
+  — é a vitrine do prestador.
+
+---
+
+## 13. Requisitos não funcionais
 
 - **Consistência:** `EXCLUDE USING gist` é inegociável — a regra vive no banco.
 - **Timezone:** cálculo de slot sempre em America/Sao_Paulo, persistência em UTC
@@ -747,7 +799,7 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
 
 ---
 
-## 13. Conector MCP — `agenda-mcp`
+## 14. Conector MCP — `agenda-mcp`
 
 > Requisitos transversais em `00-ARQUITETURA-BASE.md` §5. Repete o padrão
 > estabelecido pelo `crm-mcp` no módulo 1.
@@ -765,7 +817,7 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
 > nenhuma regra de negócio vive aqui. A trilha do módulo é API → documentação →
 > MCP: a aplicação nasce agent-friendly pelo contrato, não pelo conector.
 
-### 13.1 Tools
+### 14.1 Tools
 
 | Tool | Escopo | `readOnly` | `destructive` | `idempotent` | Confirmação |
 |---|---|:---:|:---:|:---:|---|
@@ -836,7 +888,7 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
   (prévia → `agenda_cancelar(confirmation_token)`), com expiração em 5 minutos.
 - `agenda_consultar_slots` responde em < 400 ms (p95) para janela de 30 dias.
 
-### 13.2 Resources
+### 14.2 Resources
 
 | URI | Conteúdo |
 |---|---|
@@ -846,7 +898,7 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 | `agenda://compromisso/{id}` | Ficha do compromisso + histórico de alterações |
 | `agenda://grade/{recurso_id}` | Horário de trabalho e bloqueios vigentes |
 
-### 13.3 Prompts
+### 14.3 Prompts
 
 | Prompt | O que faz |
 |---|---|
@@ -854,7 +906,7 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 | `remarcar_semana` | Dado um bloqueio novo (férias, imprevisto), lista os afetados e propõe realocação |
 | `confirmar_pendentes` | Lista compromissos das próximas 24h sem confirmação e prepara as mensagens |
 
-### 13.4 Aceite do conector
+### 14.4 Aceite do conector
 - [ ] Servidor inspecionável no MCP Inspector com schemas e annotations corretos
 - [ ] `agenda_cancelar` marcada com `destructiveHint: true` e bloqueada sem
       confirmação humana
@@ -867,7 +919,7 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 
 ---
 
-## 14. Demo final do módulo (critério de conclusão)
+## 15. Demo final do módulo (critério de conclusão)
 
 > **Marcar, reagendar e confirmar um horário inteiramente por conversa — no
 > WhatsApp de verdade.**
@@ -893,7 +945,7 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 
 ---
 
-## 15. Riscos
+## 16. Riscos
 
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
@@ -911,7 +963,7 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 | Oferta da fila expira e slot fica ocioso | Média | Baixo | Janela curta configurável (padrão 30 min) + repasse automático ao próximo; sem hold de slot |
 | Aluno edita evento no Google e espera refletir na agenda | Média | Médio | Expectativa em aula: push é one-way; evento pushado avisa "gerencie pela agenda"; bidirecional no roadmap |
 
-## 16. Plano de entrega
+## 17. Plano de entrega
 
 | Etapa | Entrega |
 |---|---|
@@ -923,9 +975,13 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 | 6 | **`canal-service`**: drivers Evolution + Z-API, templates, inbound, opt-out |
 | 7 | Job de lembretes via canal + espelho no Gestor de Tarefas + **fila de espera** (RF-14) |
 | 8 | **Google Calendar: push + busy-read** (RF-12) + feed .ics (RF-11) + **link público** (RF-13) + webhook Calendly (RF-16) |
-| 9 | **Conector MCP `agenda-mcp`** (§13) + linguagem natural de datas + **demo final** |
+| 9 | **Conector MCP `agenda-mcp`** (§14) + linguagem natural de datas + **demo final** |
 
-## 17. Roadmap (pós-programa)
+As **telas (§12) nascem junto com a etapa da sua rota, nunca antes** — é o
+API-first na prática: T-04/T-05 na etapa 2, T-02/T-03 na etapa 4, T-09 na 6,
+T-06 na 7, T-07/T-08 e a página pública P-01 na 8, T-10 fecha com a demo.
+
+## 18. Roadmap (pós-programa)
 
 Extensões registradas, em ordem aproximada de valor para o autônomo:
 
