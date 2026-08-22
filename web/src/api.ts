@@ -58,6 +58,8 @@ async function chamar<T>(metodo: string, rota: string, corpo?: unknown): Promise
 export const api = {
   get: <T>(rota: string) => chamar<T>("GET", rota),
   post: <T>(rota: string, corpo?: unknown) => chamar<T>("POST", rota, corpo),
+  patch: <T>(rota: string, corpo: unknown) => chamar<T>("PATCH", rota, corpo),
+  delete: <T>(rota: string) => chamar<T>("DELETE", rota),
 };
 
 // ── Tipos do contrato (espelham o /openapi.json) ────────────────────────────

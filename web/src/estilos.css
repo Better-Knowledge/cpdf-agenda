@@ -108,6 +108,8 @@ button.acao.secundaria { background: var(--caneta-suave); color: var(--caneta); 
 button.acao.secundaria:hover { background: #d9e2f8; }
 button.acao.perigosa { background: var(--alerta-suave); color: var(--alerta); }
 button.acao.perigosa:hover { background: #f6d6d9; }
+button.acao.perigosa.armado { background: var(--alerta); color: #fff; }
+button.acao.miuda { padding: 5px 10px; font-size: 13px; }
 
 :is(button, a, input, select, textarea):focus-visible {
   outline: 2px solid var(--caneta);

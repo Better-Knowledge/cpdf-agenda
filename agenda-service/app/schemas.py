@@ -46,6 +46,19 @@ class ServiceOut(_DinheiroOut, BaseModel):
     ativo: bool
 
 
+class ServicePatch(BaseModel):
+    """Alteração parcial: só os campos enviados mudam. Alterar duração não
+    altera agendamentos já existentes (RF-01)."""
+
+    nome: str | None = Field(default=None, min_length=1)
+    duracao_min: int | None = Field(default=None, gt=0)
+    preco: Decimal | None = Field(default=None, ge=0)
+    buffer_antes_min: int | None = Field(default=None, ge=0)
+    buffer_depois_min: int | None = Field(default=None, ge=0)
+    ativo: bool | None = None
+    resource_ids: list[UUID] | None = None  # None = não mexe; [] = remove vínculos
+
+
 class ResourceIn(BaseModel):
     nome: str = Field(min_length=1)
     tipo: str | None = None
@@ -68,6 +81,12 @@ class RuleIn(BaseModel):
     dia_semana: int = Field(ge=0, le=6, description="0=segunda … 6=domingo")
     hora_inicio: time
     hora_fim: time
+
+
+class RulePatch(BaseModel):
+    dia_semana: int | None = Field(default=None, ge=0, le=6)
+    hora_inicio: time | None = None
+    hora_fim: time | None = None
 
 
 class RuleOut(RuleIn):

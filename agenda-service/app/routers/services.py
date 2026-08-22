@@ -1,6 +1,8 @@
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import select, tuple_
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.orm import Session
 
 from .. import idempotency as idem
@@ -9,7 +11,7 @@ from ..db import get_db
 from ..errors import NaoEncontrado
 from ..models import Resource, Service, ServiceResource
 from ..pagination import codificar_cursor, decodificar_cursor
-from ..schemas import Pagina, ServiceIn, ServiceOut
+from ..schemas import Pagina, ServiceIn, ServiceOut, ServicePatch
 
 router = APIRouter(tags=["catálogo"])
 
@@ -78,3 +80,67 @@ def criar_service(
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
     db.commit()
     return corpo
+
+
+def _carregar(db: Session, cred: Credencial, service_id: UUID) -> Service:
+    servico = db.scalar(
+        select(Service).where(Service.id == service_id, Service.org_id == cred.org_id)
+    )
+    if servico is None:
+        raise NaoEncontrado("Serviço", str(service_id))
+    return servico
+
+
+@router.patch(
+    "/services/{service_id}",
+    response_model=ServiceOut,
+    summary="Altera um serviço (parcial)",
+    description=(
+        "Só os campos enviados mudam. Alterar a duração NÃO altera agendamentos já "
+        "existentes (RF-01) — só afeta slots e agendamentos futuros. resource_ids, "
+        "quando enviado, substitui os vínculos atuais."
+    ),
+)
+def alterar_service(
+    service_id: UUID,
+    dados: ServicePatch,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+):
+    exigir_escopo(cred, "agenda:write")
+    servico = _carregar(db, cred, service_id)
+    mudancas = dados.model_dump(exclude_unset=True, exclude={"resource_ids"})
+    for campo, valor in mudancas.items():
+        setattr(servico, campo, valor)
+    if dados.resource_ids is not None:
+        db.execute(delete(ServiceResource).where(ServiceResource.service_id == servico.id))
+        for rid in dados.resource_ids:
+            if not db.scalar(
+                select(Resource).where(Resource.id == rid, Resource.org_id == cred.org_id)
+            ):
+                raise NaoEncontrado("Recurso", str(rid))
+            db.add(ServiceResource(service_id=servico.id, resource_id=rid))
+    db.commit()
+    return ServiceOut.model_validate(servico)
+
+
+@router.delete(
+    "/services/{service_id}",
+    response_model=ServiceOut,
+    summary="Desativa um serviço (soft delete)",
+    description=(
+        "Entidade de negócio não é apagada: o serviço sai do catálogo e da oferta de "
+        "slots, mas agendamentos e histórico existentes ficam intactos. Reative com "
+        "PATCH {ativo: true}. Idempotente."
+    ),
+)
+def desativar_service(
+    service_id: UUID,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+):
+    exigir_escopo(cred, "agenda:write")
+    servico = _carregar(db, cred, service_id)
+    servico.ativo = False
+    db.commit()
+    return ServiceOut.model_validate(servico)

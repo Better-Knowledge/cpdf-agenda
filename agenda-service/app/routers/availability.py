@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,7 @@ from ..auth import Credencial, credencial_atual, exigir_escopo
 from ..db import get_db
 from ..errors import ApiError, NaoEncontrado
 from ..models import AvailabilityBlock, AvailabilityRule, Resource
-from ..schemas import BlockIn, BlockOut, RuleIn, RuleOut
+from ..schemas import BlockIn, BlockOut, RuleIn, RuleOut, RulePatch
 from ..tempo import utc
 
 router = APIRouter(tags=["grade"])
@@ -61,6 +61,85 @@ def listar_rules(
         .order_by(AvailabilityRule.dia_semana, AvailabilityRule.hora_inicio)
     ).all()
     return [RuleOut.model_validate(r) for r in linhas]
+
+
+@router.patch(
+    "/availability/rules/{rule_id}",
+    response_model=RuleOut,
+    summary="Altera uma janela da grade semanal",
+    description="Só os campos enviados mudam. A alteração vale para os slots futuros na hora.",
+)
+def alterar_rule(
+    rule_id: UUID,
+    dados: RulePatch,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+):
+    exigir_escopo(cred, "agenda:write")
+    regra = db.scalar(
+        select(AvailabilityRule).where(
+            AvailabilityRule.id == rule_id, AvailabilityRule.org_id == cred.org_id
+        )
+    )
+    if regra is None:
+        raise NaoEncontrado("Janela da grade", str(rule_id))
+    for campo, valor in dados.model_dump(exclude_unset=True).items():
+        setattr(regra, campo, valor)
+    if regra.hora_fim <= regra.hora_inicio:
+        raise ApiError(
+            code="PERIODO_INVALIDO",
+            message="O fim da janela precisa ser depois do início.",
+            hint="Confira hora_inicio e hora_fim após a alteração.",
+        )
+    db.commit()
+    return RuleOut.model_validate(regra)
+
+
+@router.delete(
+    "/availability/rules/{rule_id}",
+    summary="Remove uma janela da grade semanal",
+    description=(
+        "Exclusão real: grade é configuração, não histórico. O motor de slots deixa "
+        "de oferecer os horários desta janela imediatamente; agendamentos já feitos "
+        "não mudam. Idempotente: remover de novo devolve o mesmo resultado."
+    ),
+)
+def remover_rule(
+    rule_id: UUID,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+) -> dict:
+    exigir_escopo(cred, "agenda:write")
+    removidas = db.execute(
+        delete(AvailabilityRule).where(
+            AvailabilityRule.id == rule_id, AvailabilityRule.org_id == cred.org_id
+        )
+    ).rowcount
+    db.commit()
+    return {"id": str(rule_id), "removida": bool(removidas)}
+
+
+@router.delete(
+    "/availability/blocks/{block_id}",
+    summary="Remove um bloqueio pontual",
+    description=(
+        "Exclusão real: os horários do período voltam a ser ofertados na hora. "
+        "Idempotente."
+    ),
+)
+def remover_block(
+    block_id: UUID,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+) -> dict:
+    exigir_escopo(cred, "agenda:write")
+    removidos = db.execute(
+        delete(AvailabilityBlock).where(
+            AvailabilityBlock.id == block_id, AvailabilityBlock.org_id == cred.org_id
+        )
+    ).rowcount
+    db.commit()
+    return {"id": str(block_id), "removido": bool(removidos)}
 
 
 @router.get(

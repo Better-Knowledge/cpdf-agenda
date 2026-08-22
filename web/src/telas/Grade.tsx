@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Bloqueio, Recurso, Regra, api } from "../api";
+import { BotaoConfirmar } from "../Confirmar";
 import { ErroAviso } from "../ErroAviso";
 
 // T-05: horário de trabalho semanal por recurso + bloqueios pontuais.
@@ -26,6 +27,7 @@ export function Grade() {
   const [dia, setDia] = useState(0);
   const [inicio, setInicio] = useState("09:00");
   const [fim, setFim] = useState("18:00");
+  const [editandoRegra, setEditandoRegra] = useState<string | null>(null);
   const [bloqueioInicio, setBloqueioInicio] = useState("");
   const [bloqueioFim, setBloqueioFim] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -118,6 +120,7 @@ export function Grade() {
                     <th>Dia</th>
                     <th>Das</th>
                     <th>Às</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -129,6 +132,27 @@ export function Grade() {
                         <td>{DIAS[r.dia_semana]}</td>
                         <td className="mono">{hora(r.hora_inicio)}</td>
                         <td className="mono">{hora(r.hora_fim)}</td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <button
+                            className="acao secundaria miuda"
+                            onClick={() => {
+                              setEditandoRegra(r.id);
+                              setDia(r.dia_semana);
+                              setInicio(hora(r.hora_inicio));
+                              setFim(hora(r.hora_fim));
+                            }}
+                          >
+                            Editar
+                          </button>{" "}
+                          <BotaoConfirmar
+                            miudo
+                            rotulo="Remover"
+                            confirmacao="Remover?"
+                            onConfirmar={() =>
+                              agir(() => api.delete(`/availability/rules/${r.id}`))
+                            }
+                          />
+                        </td>
                       </tr>
                     ))}
                 </tbody>
@@ -139,14 +163,12 @@ export function Grade() {
               style={{ marginTop: 14 }}
               onSubmit={(e) => {
                 e.preventDefault();
+                const corpo = { dia_semana: dia, hora_inicio: inicio, hora_fim: fim };
                 agir(() =>
-                  api.post("/availability/rules", {
-                    resource_id: recursoAtivo,
-                    dia_semana: dia,
-                    hora_inicio: inicio,
-                    hora_fim: fim,
-                  }),
-                );
+                  editandoRegra
+                    ? api.patch(`/availability/rules/${editandoRegra}`, corpo)
+                    : api.post("/availability/rules", { resource_id: recursoAtivo, ...corpo }),
+                ).then(() => setEditandoRegra(null));
               }}
             >
               <label className="campo">
@@ -167,7 +189,18 @@ export function Grade() {
                 Às
                 <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} />
               </label>
-              <button className="acao">Adicionar janela</button>
+              <button className="acao">
+                {editandoRegra ? "Salvar janela" : "Adicionar janela"}
+              </button>
+              {editandoRegra && (
+                <button
+                  type="button"
+                  className="acao secundaria"
+                  onClick={() => setEditandoRegra(null)}
+                >
+                  Cancelar edição
+                </button>
+              )}
             </form>
           </div>
 
@@ -182,6 +215,7 @@ export function Grade() {
                     <th>De</th>
                     <th>Até</th>
                     <th>Motivo</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -190,6 +224,16 @@ export function Grade() {
                       <td className="mono">{dataHoraLocal(b.inicio)}</td>
                       <td className="mono">{dataHoraLocal(b.fim)}</td>
                       <td>{b.motivo ?? "—"}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <BotaoConfirmar
+                          miudo
+                          rotulo="Remover"
+                          confirmacao="Liberar horários?"
+                          onConfirmar={() =>
+                            agir(() => api.delete(`/availability/blocks/${b.id}`))
+                          }
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
