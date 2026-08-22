@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+WORKDIR /srv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --no-dev --frozen || uv sync --no-dev
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+EXPOSE 8000
+# Migrations rodam no deploy (make migrate), não no boot do container.
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
