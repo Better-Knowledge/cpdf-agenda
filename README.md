@@ -5,7 +5,11 @@
 Inteligentes** (CPDF). Marcar, remarcar, confirmar e cancelar pelo WhatsApp,
 com lembretes que disparam com o notebook desligado.
 
-**Status:** PRD pronto · desenvolvimento não iniciado
+**Status:** base do projeto pronta (etapas 1–4 parciais do plano §17) —
+schema com RLS e constraint anti-double-booking, motor de slots, agendamento/
+reagendamento/cancelamento, canal com drivers Evolution+Z-API, template-first
+e opt-out. Faltam: espelho de tarefas, Google Calendar, .ics, link público,
+fila de espera, recorrência, Calendly, `agenda-mcp` e as telas.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking
@@ -27,6 +31,33 @@ Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
 2. [docs/00-ARQUITETURA-BASE.md](docs/00-ARQUITETURA-BASE.md) — contrato comum
    (cópia congelada; fonte: [cpdf-comum](https://github.com/Better-Knowledge/cpdf-comum))
 3. [CLAUDE.md](CLAUDE.md) — instruções para agentes de código
+
+## Estrutura do repositório
+
+```
+agenda-service/   FastAPI + SQLAlchemy + Alembic — API da agenda (OpenAPI no /docs via Scalar)
+canal-service/    adapter WhatsApp (evolution|zapi implementados; meta = interface/aula)
+docs/             PRD e contrato de arquitetura
+docker-compose.yml + Caddyfile   deploy no VPS (TLS automático)
+```
+
+## Desenvolvimento
+
+Pré-requisitos: Python 3.12+, [uv](https://docs.astral.sh/uv/), Docker.
+
+```bash
+cp .env.example .env          # ajuste os segredos
+make dev-db                   # Postgres local (produção usa Supabase)
+make migrate migrate-canal    # aplica os schemas (Alembic)
+make test                     # suíte completa (invariantes protegidas por teste)
+
+cd agenda-service && uv run uvicorn app.main:app --reload   # http://localhost:8000/docs
+```
+
+Os testes de integração criam sozinhos os bancos `agenda_test`/`canal_test`
+com um role **não-superuser** (superuser ignora RLS — testar com ele seria
+teatro). Sem Postgres disponível, os testes de integração são pulados e os de
+unidade rodam normalmente.
 
 ## Ecossistema
 | Módulo | Repo |
