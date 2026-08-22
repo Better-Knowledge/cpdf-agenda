@@ -1,6 +1,12 @@
 # Substitua pelos seus domínios. TLS automático via Let's Encrypt.
 agenda.SEU-DOMINIO.com {
-	reverse_proxy agenda-service:8000
+	# UI (SPA) em /app; todo o resto é a API
+	handle /app* {
+		reverse_proxy web:80
+	}
+	handle {
+		reverse_proxy agenda-service:8000
+	}
 }
 
 # O canal-service NÃO é exposto ao público — só os webhooks inbound dos drivers.

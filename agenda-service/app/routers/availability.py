@@ -1,5 +1,7 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
@@ -59,6 +61,36 @@ def listar_rules(
         .order_by(AvailabilityRule.dia_semana, AvailabilityRule.hora_inicio)
     ).all()
     return [RuleOut.model_validate(r) for r in linhas]
+
+
+@router.get(
+    "/availability/blocks",
+    response_model=list[BlockOut],
+    summary="Bloqueios pontuais vigentes ou futuros",
+    description="Lista bloqueios cujo fim ainda não passou. Filtre por recurso se quiser.",
+)
+def listar_blocks(
+    resource_id: UUID | None = None,
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+) -> list[BlockOut]:
+    exigir_escopo(cred, "agenda:read")
+    q = select(AvailabilityBlock).where(
+        AvailabilityBlock.org_id == cred.org_id,
+        text("upper(periodo) >= now()"),
+    )
+    if resource_id:
+        q = q.where(AvailabilityBlock.resource_id == resource_id)
+    return [
+        BlockOut(
+            id=b.id,
+            resource_id=b.resource_id,
+            inicio=b.periodo.lower,
+            fim=b.periodo.upper,
+            motivo=b.motivo,
+        )
+        for b in db.scalars(q.order_by(text("lower(periodo)")))
+    ]
 
 
 @router.post(

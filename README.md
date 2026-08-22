@@ -37,9 +37,16 @@ Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
 ```
 agenda-service/   FastAPI + SQLAlchemy + Alembic — API da agenda (OpenAPI no /docs via Scalar)
 canal-service/    adapter WhatsApp (evolution|zapi implementados; meta = interface/aula)
+web/              UI do prestador (Vite + React, servida em /app) — segundo cliente da API
 docs/             PRD e contrato de arquitetura
 docker-compose.yml + Caddyfile   deploy no VPS (TLS automático)
 ```
+
+As telas seguem o princípio do PRD §12: nenhuma chama banco ou tem regra
+própria — toda ação passa pela API pública. Telas entregues: T-01 (chave de
+acesso, fase 1), T-02 (agenda do dia), T-03 (detalhe + ações), T-04
+(serviços), T-05 (grade e bloqueios). `make web-dev` roda a UI local com
+proxy para a API.
 
 ## Desenvolvimento
 
