@@ -1,0 +1,26 @@
+# Override específico deste VPS (better-knowledge): aqui quem faz TLS é o
+# Traefik central (rede externa `web`), não o Caddy do compose base — o Caddy
+# fica atrás do profile `manual` para não disputar as portas 80/443.
+#
+# O protótipo fica acessível em https://cpdf-agenda.better-knowledge.com
+# (DNS A criado em 2026-08-22; certificado Let's Encrypt automático).
+services:
+  caddy:
+    profiles: [manual]
+
+  agenda-service:
+    networks: [interna, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-agenda.entrypoints=websecure"
+      - "traefik.http.routers.cpdf-agenda.rule=Host(`cpdf-agenda.better-knowledge.com`)"
+      - "traefik.http.routers.cpdf-agenda.service=cpdf-agenda"
+      - "traefik.http.routers.cpdf-agenda.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-agenda.loadbalancer.server.port=8000"
+      - "traefik.docker.network=web"
+
+  # canal-service permanece só na rede interna — sem porta, sem Traefik.
+
+networks:
+  web:
+    external: true

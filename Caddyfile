@@ -1,0 +1,16 @@
+# Substitua pelos seus domínios. TLS automático via Let's Encrypt.
+agenda.SEU-DOMINIO.com {
+	reverse_proxy agenda-service:8000
+}
+
+# O canal-service NÃO é exposto ao público — só os webhooks inbound dos drivers.
+# Qualquer outra rota do canal é service-to-service dentro da rede do compose.
+canal.SEU-DOMINIO.com {
+	@webhooks path /webhooks/canal/* /health
+	handle @webhooks {
+		reverse_proxy canal-service:8000
+	}
+	handle {
+		respond "não exposto" 403
+	}
+}

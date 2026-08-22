@@ -1,0 +1,48 @@
+services:
+  agenda-service:
+    build: ./agenda-service
+    env_file: .env
+    environment:
+      CANAL_SERVICE_URL: http://canal-service:8000
+    depends_on:
+      - canal-service
+    restart: unless-stopped
+    networks: [interna]
+
+  canal-service:
+    build: ./canal-service
+    env_file: .env
+    environment:
+      DATABASE_URL: ${CANAL_DATABASE_URL}
+    restart: unless-stopped
+    networks: [interna]
+
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    networks: [interna]
+
+  # Somente desenvolvimento/protótipo — em produção o banco é o Supabase.
+  db:
+    image: postgres:16
+    profiles: [dev]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: agenda
+    ports: ["127.0.0.1:5432:5432"]  # nunca exposto para fora do host
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks: [interna]
+
+networks:
+  interna:
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pg_data:
