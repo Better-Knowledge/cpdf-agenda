@@ -223,7 +223,7 @@ que aparece no programa quando o VPS não se justifica.
 
 | Módulo | Abordagem | Por que esta e não a outra |
 |---|---|---|
-| **01 · CRM** | Python + FastAPI | Você **já tem** este sistema em Python, da turma básica. A promessa é promover o que existe, não recomeçar. Além disso: migração de banco e resumo de reunião por IA são território de Python |
+| **01 · CRM** | Python + FastAPI | Você **já tem** este sistema da turma básica — em Node + SQLite. O módulo o **promove**: os dados migram para a nuvem e a API é reescrita em FastAPI, e essa reescrita guiada é o conteúdo. Migração de banco e resumo de reunião por IA são território de Python |
 | **02 · Agenda** | Python + FastAPI | Fuso horário e horário de verão são a maior fonte de bug silencioso em agenda — Python tem as ferramentas mais seguras. E lembrete de hora em hora quer um servidor livre |
 | **03 · Catálogo e Pedidos** | **Next.js** | **O módulo do contraste.** É o mais visual (catálogo, carrinho), não tem rotina agendada complexa, e o estoque atualiza na tela por evento. Onde a abordagem B mostra a força dela com o menor risco |
 | **04 · Financeiro** | Python + FastAPI | Dinheiro. JavaScript não tem tipo numérico exato nativo; erro de centavo em projeção de caixa é o defeito mais caro possível. Aqui a escolha não é preferência |

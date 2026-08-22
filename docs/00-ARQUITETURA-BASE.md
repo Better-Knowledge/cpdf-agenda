@@ -78,7 +78,7 @@ justificativa completa, escrita para aluno não-desenvolvedor, está em
 
 | Módulo | Stack | Papel | Motivo que decide |
 |---|---|---|---|
-| **01 · CRM** | Canônica | formação | repo da turma básica é Python; migração e IA de reunião |
+| **01 · CRM** | Canônica | formação | a ementa promete reescrever a API local (Node/Express + SQLite) em FastAPI — a reescrita guiada é o conteúdo; migração e IA de reunião |
 | **02 · Agenda** | Canônica | formação | fuso/horário de verão e lembretes frequentes exigem servidor livre |
 | **03 · Catálogo e Pedidos** | **Excursão (Next.js)** | contraste | é o que o agente entrega por padrão; a lição de hospedagem se aprende publicando |
 | **04 · Financeiro** | Canônica | formação | precisão decimal em dinheiro — não é preferência |
