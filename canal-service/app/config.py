@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Janela de sessão do WhatsApp: inbound do cliente abre 24h de resposta livre
     sessao_horas: int = 24
 
+    # Base da URL de webhook que o DRIVER usa para alcançar o canal. Para o
+    # Evolution self-host é o endereço interno do Docker; um driver de nuvem
+    # exigiria expor /webhooks/canal/* publicamente (etapa da demo Z-API).
+    webhook_base_url: str = "http://canal-service:8000"
+
     @property
     def dev_mode(self) -> bool:
         return self.app_env != "prod"

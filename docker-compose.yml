@@ -15,7 +15,9 @@ services:
     environment:
       DATABASE_URL: ${CANAL_DATABASE_URL}
     restart: unless-stopped
-    networks: [interna]
+    # evolution: rede do Evolution API self-host — o canal cria instâncias lá
+    # e o webhook inbound volta por ela (o canal nunca é exposto à internet).
+    networks: [interna, evolution]
 
   web:
     build: ./web
@@ -46,6 +48,9 @@ services:
 
 networks:
   interna:
+  evolution:
+    external: true
+    name: evolution-net
 
 volumes:
   caddy_data:

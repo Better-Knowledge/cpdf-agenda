@@ -48,6 +48,34 @@ class ConfigIn(BaseModel):
     )
 
 
+class ConfigOut(BaseModel):
+    """Leitura da configuração — credenciais NUNCA voltam (write-only)."""
+
+    configurado: bool
+    driver: str | None = None
+    numero: str | None = None
+    instancia: str | None = None
+    ativo: bool = False
+    webhook_url: str | None = Field(
+        default=None,
+        description="URL (com segredo) que o driver deve chamar — para colar em painel de driver manual",
+    )
+
+
+class ConexaoOut(BaseModel):
+    estado: str = Field(description="conectado | aguardando_qr | desconectado | desconhecido")
+    qr_base64: str | None = Field(
+        default=None, description="Data URI do QR — presente quando estado=aguardando_qr"
+    )
+    detalhe: str | None = None
+
+
+class OptoutOut(BaseModel):
+    telefone: str
+    origem: str | None
+    em: str
+
+
 class MensagemOut(BaseModel):
     id: int
     direcao: str

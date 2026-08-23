@@ -176,6 +176,50 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "CANAL_NAO_CONFIGURADO": (
+        409,
+        "A organização ainda não configurou o canal de WhatsApp",
+        {
+            "code": "CANAL_NAO_CONFIGURADO",
+            "message": "A organização não tem canal de WhatsApp configurado.",
+            "hint": "Configure driver, número dedicado e credenciais em POST /canal/config.",
+            "retryable": False,
+        },
+    ),
+    "NUMERO_PESSOAL_RECUSADO": (
+        400,
+        "O canal exige número dedicado — nunca o pessoal",
+        {
+            "code": "NUMERO_PESSOAL_RECUSADO",
+            "message": "O canal exige um número de WhatsApp dedicado à organização.",
+            "hint": (
+                "Não use o número pessoal: drivers não-oficiais podem ser banidos pelo "
+                "WhatsApp. Provisione um número próprio e confirme com "
+                "confirmo_numero_dedicado=true."
+            ),
+            "retryable": False,
+        },
+    ),
+    "FALHA_NO_DRIVER": (
+        502,
+        "O driver de WhatsApp não respondeu à operação",
+        {
+            "code": "FALHA_NO_DRIVER",
+            "message": "O driver evolution não respondeu à operação de conexão.",
+            "hint": "evolution inacessível: timeout — verifique o servidor do driver.",
+            "retryable": True,
+        },
+    ),
+    "CANAL_INDISPONIVEL": (
+        502,
+        "O canal-service não respondeu",
+        {
+            "code": "CANAL_INDISPONIVEL",
+            "message": "O canal de WhatsApp não respondeu.",
+            "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+            "retryable": True,
+        },
+    ),
 }
 
 _DESCRICAO_STATUS = {
@@ -185,6 +229,7 @@ _DESCRICAO_STATUS = {
     404: "Não encontrado nesta organização",
     409: "Conflito — o hint diz como resolver",
     422: "Validação falhou",
+    502: "Dependência não respondeu — retry é seguro",
 }
 
 # Todo endpoint autenticado pode devolver estes três.

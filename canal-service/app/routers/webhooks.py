@@ -107,9 +107,8 @@ def _processar(driver_obj: DriverCanal, inbound: MensagemInbound, token: str) ->
             from .. import crypto
 
             try:
-                driver_obj.enviar_texto(
-                    crypto.decifrar(config.credenciais), inbound.telefone, CONFIRMACAO_OPTOUT
-                )
+                credenciais = {**crypto.decifrar(config.credenciais), "instancia": config.instancia}
+                driver_obj.enviar_texto(credenciais, inbound.telefone, CONFIRMACAO_OPTOUT)
             except Exception:
                 log.exception("falha ao confirmar opt-out — opt-out registrado mesmo assim")
             return {"resultado": "optout_registrado"}

@@ -21,6 +21,9 @@ export function Layout() {
           <NavLink to="/grade" className={aba}>
             Grade e bloqueios
           </NavLink>
+          <NavLink to="/canal" className={aba}>
+            Canal
+          </NavLink>
         </nav>
         <div className="canto">
           <span>Painel do prestador</span>

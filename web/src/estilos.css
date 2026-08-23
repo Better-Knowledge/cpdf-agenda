@@ -271,6 +271,23 @@ table.lista td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
 .selo.no_show { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
 .selo.risco { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
 .selo.serie { background: var(--bg-sunk); color: var(--fg-muted); }
+/* estado da conexão do canal (T-09) */
+.selo.conectado { background: rgba(79, 122, 90, 0.14); color: var(--success); }
+.selo.aguardando_qr { background: rgba(226, 101, 70, 0.12); color: var(--accent); }
+.selo.desconectado { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
+.selo.desconhecido { background: var(--bg-sunk); color: var(--fg-muted); }
+
+/* QR code do pareamento: moldura branca, como o WhatsApp espera escanear */
+.qr-quadro {
+  display: inline-block;
+  background: #fff;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  box-shadow: var(--shadow-sm);
+  margin: 12px 0;
+}
+.qr-quadro img { display: block; width: 240px; height: 240px; image-rendering: pixelated; }
 
 .aviso-erro {
   background: rgba(192, 67, 45, 0.09);

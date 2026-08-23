@@ -3,7 +3,7 @@
   "info": {
     "title": "Agenda Inteligente — agenda-service",
     "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <jwt do Supabase>` (humanos/UI) ou `X-Agent-Key`\n(agentes — fase 1 do conector). Escopos: `agenda:read` (consultar),\n`agenda:write` (criar/alterar), `agenda:cancel` (cancelar). Cada rota declara\no escopo que exige.\n",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "servers": [
     {
@@ -3283,6 +3283,978 @@
         },
         "x-escopo-requerido": "agenda:cancel"
       }
+    },
+    "/canal/config": {
+      "get": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Configuração vigente do canal (sem credenciais)",
+        "description": "**Escopo:** `agenda:read`\n\nCredenciais de driver são write-only e nunca voltam. `configurado=false` não é erro.",
+        "operationId": "ler_config_canal_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanalConfigOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      },
+      "post": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Configura o driver do canal (write-only)",
+        "description": "**Escopo:** `agenda:write`\n\nTrocar de driver é só trocar esta configuração — nenhum módulo muda. As credenciais são cifradas no canal e NUNCA voltam. O produto recusa número que não seja dedicado. Reconfigurar rotaciona o segredo do webhook.",
+        "operationId": "configurar_canal_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanalConfigIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanalConfigCriadaOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NUMERO_PESSOAL_RECUSADO": {
+                    "summary": "O canal exige número dedicado — nunca o pessoal",
+                    "value": {
+                      "code": "NUMERO_PESSOAL_RECUSADO",
+                      "message": "O canal exige um número de WhatsApp dedicado à organização.",
+                      "hint": "Não use o número pessoal: drivers não-oficiais podem ser banidos pelo WhatsApp. Provisione um número próprio e confirme com confirmo_numero_dedicado=true.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/canal/conectar": {
+      "post": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Conecta a instância do WhatsApp e devolve o QR code",
+        "description": "**Escopo:** `agenda:write`\n\nGarante a instância no servidor do driver, aponta o webhook do inbound para o canal e devolve o QR (data URI) para parear em WhatsApp > Aparelhos conectados. Só drivers self-host (Evolution) — nos demais a conexão é no painel do fornecedor.",
+        "operationId": "conectar_canal_conectar_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanalConexaoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_NAO_CONFIGURADO": {
+                    "summary": "A organização ainda não configurou o canal de WhatsApp",
+                    "value": {
+                      "code": "CANAL_NAO_CONFIGURADO",
+                      "message": "A organização não tem canal de WhatsApp configurado.",
+                      "hint": "Configure driver, número dedicado e credenciais em POST /canal/config.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "FALHA_NO_DRIVER": {
+                    "summary": "O driver de WhatsApp não respondeu à operação",
+                    "value": {
+                      "code": "FALHA_NO_DRIVER",
+                      "message": "O driver evolution não respondeu à operação de conexão.",
+                      "hint": "evolution inacessível: timeout — verifique o servidor do driver.",
+                      "retryable": true
+                    }
+                  },
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/canal/status": {
+      "get": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Estado da conexão instância ↔ WhatsApp",
+        "operationId": "status_conexao_canal_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanalConexaoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_NAO_CONFIGURADO": {
+                    "summary": "A organização ainda não configurou o canal de WhatsApp",
+                    "value": {
+                      "code": "CANAL_NAO_CONFIGURADO",
+                      "message": "A organização não tem canal de WhatsApp configurado.",
+                      "hint": "Configure driver, número dedicado e credenciais em POST /canal/config.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "FALHA_NO_DRIVER": {
+                    "summary": "O driver de WhatsApp não respondeu à operação",
+                    "value": {
+                      "code": "FALHA_NO_DRIVER",
+                      "message": "O driver evolution não respondeu à operação de conexão.",
+                      "hint": "evolution inacessível: timeout — verifique o servidor do driver.",
+                      "retryable": true
+                    }
+                  },
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      }
+    },
+    "/canal/templates": {
+      "get": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Templates de mensagem ativa da organização",
+        "operationId": "listar_templates_canal_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CanalTemplateOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Templates Canal Templates Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      },
+      "post": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Cadastra (ou versiona) um template de mensagem ativa",
+        "description": "**Escopo:** `agenda:write`\n\nMesmo nome → nova versão. O texto é redigido uma vez, revisado por humano e versionado (IA-02) — a IA não improvisa mensagem ativa por cliente.",
+        "operationId": "criar_template_canal_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanalTemplateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanalTemplateOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/canal/optouts": {
+      "get": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Clientes que pediram para não receber mensagem ativa",
+        "operationId": "listar_optouts_canal_optouts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CanalOptoutOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Optouts Canal Optouts Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      }
+    },
+    "/canal/optouts/{telefone}": {
+      "delete": {
+        "tags": [
+          "canal"
+        ],
+        "summary": "Remove um opt-out (reativa mensagens ativas para o telefone)",
+        "description": "**Escopo:** `agenda:write`\n\nSó com pedido explícito do cliente ao humano. Idempotente.",
+        "operationId": "remover_optout_canal_optouts__telefone__delete",
+        "parameters": [
+          {
+            "name": "telefone",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Telefone"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemocaoOptoutOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
     }
   },
   "components": {
@@ -3616,6 +4588,291 @@
           "motivo"
         ],
         "title": "BlockOut"
+      },
+      "CanalConexaoOut": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "title": "Estado",
+            "description": "conectado | aguardando_qr | desconectado | desconhecido"
+          },
+          "qr_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qr Base64",
+            "description": "Data URI do QR — presente quando estado=aguardando_qr"
+          },
+          "detalhe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalhe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estado"
+        ],
+        "title": "CanalConexaoOut"
+      },
+      "CanalConfigCriadaOut": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver"
+          },
+          "numero": {
+            "type": "string",
+            "title": "Numero"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          },
+          "webhook_url": {
+            "type": "string",
+            "title": "Webhook Url",
+            "description": "URL (com segredo rotativo) que o driver chama — aparece só aqui"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "numero",
+          "ativo",
+          "webhook_url"
+        ],
+        "title": "CanalConfigCriadaOut"
+      },
+      "CanalConfigIn": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "evolution | zapi | meta — trocar é só configuração"
+          },
+          "numero": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Numero",
+            "description": "Número DEDICADO da organização, E.164"
+          },
+          "instancia": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Instancia",
+            "description": "Identificador da instância no driver"
+          },
+          "credenciais": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Credenciais",
+            "description": "Write-only: cifradas no canal, nunca voltam em resposta ou log"
+          },
+          "confirmo_numero_dedicado": {
+            "type": "boolean",
+            "title": "Confirmo Numero Dedicado",
+            "description": "O produto recusa número pessoal — declare que o número é dedicado",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "numero",
+          "instancia",
+          "credenciais"
+        ],
+        "title": "CanalConfigIn",
+        "examples": [
+          {
+            "confirmo_numero_dedicado": true,
+            "credenciais": {
+              "apikey": "…",
+              "server_url": "http://evolution_api:8080"
+            },
+            "driver": "evolution",
+            "instancia": "minha-org",
+            "numero": "+5511900000000"
+          }
+        ]
+      },
+      "CanalConfigOut": {
+        "properties": {
+          "configurado": {
+            "type": "boolean",
+            "title": "Configurado"
+          },
+          "driver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver"
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero"
+          },
+          "instancia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instancia"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo",
+            "default": false
+          },
+          "webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhook Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configurado"
+        ],
+        "title": "CanalConfigOut"
+      },
+      "CanalOptoutOut": {
+        "properties": {
+          "telefone": {
+            "type": "string",
+            "title": "Telefone"
+          },
+          "origem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origem",
+            "description": "palavra_chave | pedido_humano"
+          },
+          "em": {
+            "type": "string",
+            "title": "Em"
+          }
+        },
+        "type": "object",
+        "required": [
+          "telefone",
+          "em"
+        ],
+        "title": "CanalOptoutOut"
+      },
+      "CanalTemplateIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Nome",
+            "description": "Mesmo nome → nova versão (IA-02)"
+          },
+          "corpo": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Corpo",
+            "description": "Texto com {{variaveis}}"
+          },
+          "aprovado_meta": {
+            "type": "boolean",
+            "title": "Aprovado Meta",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "corpo"
+        ],
+        "title": "CanalTemplateIn",
+        "examples": [
+          {
+            "corpo": "Olá {{nome}}! Lembrete: {{servico}} {{data_hora}}. Responda SIM para confirmar ou SAIR para não receber avisos.",
+            "nome": "lembrete_24h"
+          }
+        ]
+      },
+      "CanalTemplateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "corpo": {
+            "type": "string",
+            "title": "Corpo"
+          },
+          "versao": {
+            "type": "integer",
+            "title": "Versao"
+          },
+          "aprovado_meta": {
+            "type": "boolean",
+            "title": "Aprovado Meta"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "corpo",
+          "versao",
+          "aprovado_meta",
+          "ativo"
+        ],
+        "title": "CanalTemplateOut"
       },
       "CancelIn": {
         "properties": {
@@ -4031,6 +5288,24 @@
           "removido"
         ],
         "title": "RemocaoBloqueioOut"
+      },
+      "RemocaoOptoutOut": {
+        "properties": {
+          "telefone": {
+            "type": "string",
+            "title": "Telefone"
+          },
+          "removido": {
+            "type": "boolean",
+            "title": "Removido"
+          }
+        },
+        "type": "object",
+        "required": [
+          "telefone",
+          "removido"
+        ],
+        "title": "RemocaoOptoutOut"
       },
       "RemocaoRegraOut": {
         "properties": {
@@ -4641,6 +5916,10 @@
     {
       "name": "recorrência",
       "description": "Séries semanais/quinzenais (RF-15). Cada ocorrência é um compromisso próprio ligado ao `series_id`."
+    },
+    {
+      "name": "canal",
+      "description": "Canal de WhatsApp (T-09), por procuração: a UI fala com o agenda-service e ele repassa ao canal-service — que nunca é exposto ao navegador. Credenciais de driver são write-only."
     }
   ],
   "security": [

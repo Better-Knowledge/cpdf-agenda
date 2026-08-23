@@ -443,3 +443,96 @@ class RemocaoRegraOut(BaseModel):
 class RemocaoBloqueioOut(BaseModel):
     id: UUID
     removido: bool = Field(description="false = já não existia (remoção é idempotente)")
+
+
+# ── Canal de WhatsApp (T-09 — proxy para o canal-service) ────────────────────
+
+
+class CanalConfigIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "driver": "evolution",
+                    "numero": "+5511900000000",
+                    "instancia": "minha-org",
+                    "credenciais": {"server_url": "http://evolution_api:8080", "apikey": "…"},
+                    "confirmo_numero_dedicado": True,
+                }
+            ]
+        }
+    )
+
+    driver: str = Field(description="evolution | zapi | meta — trocar é só configuração")
+    numero: str = Field(min_length=8, description="Número DEDICADO da organização, E.164")
+    instancia: str = Field(min_length=1, description="Identificador da instância no driver")
+    credenciais: dict[str, str] = Field(
+        description="Write-only: cifradas no canal, nunca voltam em resposta ou log"
+    )
+    confirmo_numero_dedicado: bool = Field(
+        default=False,
+        description="O produto recusa número pessoal — declare que o número é dedicado",
+    )
+
+
+class CanalConfigCriadaOut(BaseModel):
+    driver: str
+    numero: str
+    ativo: bool
+    webhook_url: str = Field(
+        description="URL (com segredo rotativo) que o driver chama — aparece só aqui"
+    )
+
+
+class CanalConfigOut(BaseModel):
+    configurado: bool
+    driver: str | None = None
+    numero: str | None = None
+    instancia: str | None = None
+    ativo: bool = False
+    webhook_url: str | None = None
+
+
+class CanalConexaoOut(BaseModel):
+    estado: str = Field(description="conectado | aguardando_qr | desconectado | desconhecido")
+    qr_base64: str | None = Field(
+        default=None, description="Data URI do QR — presente quando estado=aguardando_qr"
+    )
+    detalhe: str | None = None
+
+
+class CanalTemplateIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "nome": "lembrete_24h",
+                    "corpo": "Olá {{nome}}! Lembrete: {{servico}} {{data_hora}}. Responda SIM para confirmar ou SAIR para não receber avisos.",
+                }
+            ]
+        }
+    )
+
+    nome: str = Field(min_length=1, description="Mesmo nome → nova versão (IA-02)")
+    corpo: str = Field(min_length=1, description="Texto com {{variaveis}}")
+    aprovado_meta: bool = False
+
+
+class CanalTemplateOut(BaseModel):
+    id: UUID
+    nome: str
+    corpo: str
+    versao: int
+    aprovado_meta: bool
+    ativo: bool
+
+
+class CanalOptoutOut(BaseModel):
+    telefone: str
+    origem: str | None = Field(default=None, description="palavra_chave | pedido_humano")
+    em: str
+
+
+class RemocaoOptoutOut(BaseModel):
+    telefone: str
+    removido: bool
