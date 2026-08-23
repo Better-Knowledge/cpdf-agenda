@@ -77,6 +77,12 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
 - Migrations reversíveis (`alembic downgrade` testado)
 - Cancelamento exige confirmação humana (elicitation MCP ou `confirmation_token`)
 
+## Licença
+Apache 2.0 (`LICENSE`, verbatim — não edite) + `NOTICE` com a atribuição
+obrigatória da Seção 4(d). Autor: Fernando Melo Faraco (CPDF ·
+Better-Knowledge). Arquivo novo herda a licença do repo; não introduza
+dependência com licença incompatível (GPL/AGPL) sem falar antes.
+
 ## Não faça
 - Não chame API de WhatsApp direto de nenhum módulo — sempre via `canal-service`
 - Não configure o número pessoal do aluno no canal (o produto recusa)

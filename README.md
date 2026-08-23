@@ -209,6 +209,29 @@ por conversa, um cliente marca pelo WhatsApp, o isolamento é demonstrado com
 Google Calendar — e o notebook do apresentador pode ser fechado, porque os
 lembretes rodam no VPS.
 
+## Licença e atribuição
+
+**Apache License 2.0** — texto completo em [LICENSE](LICENSE), atribuição em
+[NOTICE](NOTICE).
+
+Autoria: **Fernando Melo Faraco** (<fernando.faraco@better-knowledge.com.br>),
+**Comunidade Profissionais do Futuro (CPDF)** e **Better-Knowledge**.
+
+A atribuição é **obrigatória**, e o mecanismo é o arquivo `NOTICE`: a Seção
+4(d) da licença faz da preservação dele uma condição, não uma cortesia. Quem
+redistribuir este software — com ou sem modificações, em código ou compilado —
+precisa entregar uma cópia legível daquele aviso, seja no `NOTICE` da obra
+derivada, na documentação que acompanha a distribuição, ou numa tela do
+produto onde avisos de terceiros costumam aparecer. Arquivos modificados
+precisam dizer que foram modificados (4(b)), e os avisos de copyright e
+atribuição no código-fonte precisam ser preservados (4(c)).
+
+O que a Apache 2.0 **não** faz é obrigar quem usa o software a exibir o seu
+nome — obrigação de propaganda é justamente o que a licença evita. Se o
+requisito for "todo aplicativo derivado mostra o crédito na interface", isso
+não cabe na Apache 2.0: seria uma licença diferente, e chamá-la de Apache
+2.0 confundiria quem lê.
+
 ## Ecossistema
 | Módulo | Repo |
 |---|---|

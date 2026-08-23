@@ -3,6 +3,9 @@ name = "canal-service"
 version = "0.1.0"
 description = "Canal de WhatsApp (adapter multi-driver) — nasce no módulo 02, serve M3 e M4"
 requires-python = ">=3.12"
+authors = [{ name = "Fernando Melo Faraco", email = "fernando.faraco@better-knowledge.com.br" }]
+license = "Apache-2.0"
+license-files = ["../LICENSE", "../NOTICE"]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
