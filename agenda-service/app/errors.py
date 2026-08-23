@@ -55,11 +55,15 @@ class NaoEncontrado(ApiError):
 
 def instalar_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
-    async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
+    async def _api_error(request: Request, exc: ApiError) -> JSONResponse:
+        # A auditoria precisa do `code` para responder "por que foi recusado?".
+        # O corpo da resposta já saiu do alcance do middleware quando ele roda.
+        request.state.error_code = exc.code
         return JSONResponse(status_code=exc.status_code, content=exc.payload())
 
     @app.exception_handler(RequestValidationError)
-    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
+        request.state.error_code = "PAYLOAD_INVALIDO"
         detalhes = "; ".join(
             f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
         )

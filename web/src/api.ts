@@ -173,6 +173,32 @@ export interface CanalOptout {
   em: string;
 }
 
+export interface QuemSou {
+  org_id: string;
+  nome: string;
+  papel: string | null;
+  ator: "humano" | "agente";
+  escopos: string[];
+  titular: string | null;
+}
+
+export interface Credencial {
+  id: string;
+  nome: string;
+  papel: "atendimento" | "operacao" | "administrativo";
+  escopos: string[];
+  prefixo: string;
+  ativo: boolean;
+  criada_em: string;
+  ultimo_uso_em: string | null;
+  revogada_em: string | null;
+}
+
+/** O token em claro só existe nesta resposta — o banco guarda o SHA-256. */
+export interface CredencialCriada extends Credencial {
+  token: string;
+}
+
 export interface Historico {
   acao: string;
   de: string | null;

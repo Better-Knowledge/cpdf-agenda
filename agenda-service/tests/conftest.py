@@ -111,6 +111,26 @@ def catalogo(client):
     return {"servico": servico, "recurso": recurso}
 
 
+def credencial_falsa(org_id, papel, **campos):
+    """Override de `credencial_atual` que se comporta como o original.
+
+    Inclusive no detalhe que importa: **gravar a credencial em
+    `request.state`**. É de lá que o middleware de auditoria a lê, então um
+    override que só devolve o objeto faria a auditoria sumir em silêncio nos
+    testes — e daria a impressão de que ela não cobre aquele caminho.
+    """
+    from fastapi import Request
+
+    from app.auth import Credencial, escopos_do_papel
+
+    def usar(request: Request) -> Credencial:
+        cred = Credencial(org_id=org_id, escopos=escopos_do_papel(papel), **campos)
+        request.state.credencial = cred
+        return cred
+
+    return usar
+
+
 class CanalFake:
     """Substitui o canal-service nos testes: registra o que teria sido
     enviado e permite simular opt-out e indisponibilidade."""

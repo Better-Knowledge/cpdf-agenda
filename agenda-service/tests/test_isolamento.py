@@ -8,10 +8,10 @@ import uuid
 
 import pytest
 
-from app.auth import Credencial, credencial_atual, escopos_do_papel
+from app.auth import credencial_atual
 from app.main import app
 
-from .conftest import integracao
+from .conftest import credencial_falsa, integracao
 
 pytestmark = integracao
 
@@ -19,11 +19,8 @@ pytestmark = integracao
 @pytest.fixture()
 def como_atendimento(org_id):
     """Roda as chamadas como um agente de canal: read + write, nada mais."""
-    app.dependency_overrides[credencial_atual] = lambda: Credencial(
-        org_id=org_id,
-        escopos=escopos_do_papel("atendimento"),
-        ator="agente",
-        nome="Bot do canal",
+    app.dependency_overrides[credencial_atual] = credencial_falsa(
+        org_id, "atendimento", ator="agente", nome="Bot do canal"
     )
     yield
     app.dependency_overrides.pop(credencial_atual, None)
@@ -81,11 +78,8 @@ def test_replay_de_idempotency_de_outro_titular_nao_vaza_corpo(client, catalogo,
     }
 
     def como(titular: str | None):
-        app.dependency_overrides[credencial_atual] = lambda: Credencial(
-            org_id=org_id,
-            escopos=escopos_do_papel("atendimento"),
-            ator="agente",
-            titular=titular,
+        app.dependency_overrides[credencial_atual] = credencial_falsa(
+            org_id, "atendimento", ator="agente", titular=titular
         )
 
     como("+5511900001111")

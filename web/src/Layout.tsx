@@ -27,6 +27,9 @@ export function Layout() {
           <NavLink to="/canal" className={aba}>
             Canal
           </NavLink>
+          <NavLink to="/credenciais" className={aba}>
+            Integrações
+          </NavLink>
         </nav>
         <div className="canto">
           <span>Painel do prestador</span>

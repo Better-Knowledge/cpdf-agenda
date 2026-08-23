@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
@@ -14,6 +14,8 @@ from ..models import AvailabilityBlock, AvailabilityRule, Resource
 from ..schemas import (
     BlockIn,
     BlockOut,
+    GradeSemanaIn,
+    GradeSemanaOut,
     RemocaoBloqueioOut,
     RemocaoRegraOut,
     RuleIn,
@@ -68,16 +70,102 @@ def criar_rule(
     openapi_extra=operacao("agenda:read"),
 )
 def listar_rules(
+    resource_id: UUID | None = Query(default=None, description="Só a grade deste recurso"),
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> list[RuleOut]:
     exigir_escopo(cred, "agenda:read")
+    q = select(AvailabilityRule).where(AvailabilityRule.org_id == cred.org_id)
+    if resource_id:
+        q = q.where(AvailabilityRule.resource_id == resource_id)
     linhas = db.scalars(
-        select(AvailabilityRule)
-        .where(AvailabilityRule.org_id == cred.org_id)
-        .order_by(AvailabilityRule.dia_semana, AvailabilityRule.hora_inicio)
+        q.order_by(AvailabilityRule.dia_semana, AvailabilityRule.hora_inicio)
     ).all()
     return [RuleOut.model_validate(r) for r in linhas]
+
+
+@router.put(
+    "/availability/rules",
+    response_model=GradeSemanaOut,
+    summary="Define a semana inteira de um recurso (substitui a grade)",
+    description=(
+        "Declarativo: descreva a semana **como ela deve ficar** e o servidor faz a "
+        "diferença numa transação só. Substitui todas as janelas do recurso — "
+        "`janelas: []` limpa a grade. Prefira isto a remendar janela a janela: "
+        "listar, remover uma, criar duas e esquecer nenhuma é onde um agente erra. "
+        "Aceita Idempotency-Key."
+    ),
+    responses=respostas("NAO_ENCONTRADO", "PERIODO_INVALIDO"),
+    openapi_extra=operacao("agenda:admin", idempotente=True),
+)
+def definir_grade(
+    dados: GradeSemanaIn,
+    request: Request,
+    resource_id: UUID = Query(description="Recurso cuja semana está sendo definida"),
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+):
+    exigir_escopo(cred, "agenda:admin")
+    _exigir_recurso(db, cred, resource_id)
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
+        return repetida
+
+    for janela in dados.janelas:
+        if janela.hora_fim <= janela.hora_inicio:
+            raise ApiError(
+                code="PERIODO_INVALIDO",
+                message=(
+                    f"A janela de {janela.hora_inicio}–{janela.hora_fim} termina antes "
+                    "de começar."
+                ),
+                hint="Confira hora_inicio e hora_fim de cada janela.",
+            )
+    # Sobreposição no mesmo dia quase sempre é engano (09–12 e 11–14). O motor
+    # de slots faria a união e o erro passaria despercebido — melhor recusar
+    # com o conflito nomeado do que aceitar uma grade que ninguém quis.
+    por_dia: dict[int, list] = {}
+    for janela in sorted(dados.janelas, key=lambda j: (j.dia_semana, j.hora_inicio)):
+        anteriores = por_dia.setdefault(janela.dia_semana, [])
+        if anteriores and janela.hora_inicio < anteriores[-1].hora_fim:
+            raise ApiError(
+                code="PERIODO_INVALIDO",
+                message=(
+                    f"Duas janelas do dia {janela.dia_semana} se sobrepõem: "
+                    f"{anteriores[-1].hora_inicio}–{anteriores[-1].hora_fim} e "
+                    f"{janela.hora_inicio}–{janela.hora_fim}."
+                ),
+                hint="Junte as duas numa só ou ajuste os horários para não colidirem.",
+            )
+        anteriores.append(janela)
+
+    # Tudo na mesma transação: ou a semana nova entra inteira, ou a antiga fica.
+    removidas = db.execute(
+        delete(AvailabilityRule).where(
+            AvailabilityRule.org_id == cred.org_id,
+            AvailabilityRule.resource_id == resource_id,
+        )
+    ).rowcount
+    novas = [
+        AvailabilityRule(
+            org_id=cred.org_id,
+            resource_id=resource_id,
+            dia_semana=j.dia_semana,
+            hora_inicio=j.hora_inicio,
+            hora_fim=j.hora_fim,
+        )
+        for j in sorted(dados.janelas, key=lambda j: (j.dia_semana, j.hora_inicio))
+    ]
+    db.add_all(novas)
+    db.flush()
+
+    corpo = GradeSemanaOut(
+        resource_id=resource_id,
+        janelas=[RuleOut.model_validate(r) for r in novas],
+        removidas=removidas,
+    )
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
+    db.commit()
+    return corpo
 
 
 @router.patch(

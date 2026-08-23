@@ -95,6 +95,19 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "ESCOPO_NAO_DELEGAVEL": (
+        403,
+        "Este escopo não pode ser concedido por rota",
+        {
+            "code": "ESCOPO_NAO_DELEGAVEL",
+            "message": "`credenciais:admin` não pode ser concedido por esta rota.",
+            "hint": (
+                "Uma credencial que emite credenciais sobrevive à própria revogação. "
+                "Se realmente for necessário, emita pelo servidor: `make credencial`."
+            ),
+            "retryable": False,
+        },
+    ),
     "SESSAO_INVALIDA": (
         401,
         "Token de sessão de atendimento inválido ou expirado",

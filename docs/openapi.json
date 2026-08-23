@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agenda Inteligente — agenda-service",
-    "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <jwt do Supabase>` (humanos/UI) ou `X-Agent-Key`\n(agentes — fase 1 do conector). Escopos: `agenda:read` (consultar),\n`agenda:write` (criar/alterar), `agenda:cancel` (cancelar). Cada rota declara\no escopo que exige.\n",
+    "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <token>` — `agk_…` (credencial de agente, revogável),\n`ats_…` (sessão de atendimento, cunhada pelo canal) ou JWT do Supabase\n(humanos/UI). `X-Agent-Key` é o caminho legado da UI.\n\n**Autenticar não concede tudo.** Cada rota declara o escopo que exige, e é o\nmesmo cobrado em execução:\n\n| Escopo | Cobre |\n|---|---|\n| `agenda:read` | catálogo, horários livres, grade, o **próprio** compromisso |\n| `agenda:write` | agendar, remarcar, confirmar, fila — para **um** cliente |\n| `agenda:cancel` | cancelar um compromisso |\n| `agenda:operacao` | o dia inteiro, todos os compromissos, a fila completa, faltas |\n| `agenda:admin` | serviços, recursos, grade e bloqueios |\n| `canal:admin` | driver, credenciais do canal, templates, opt-outs |\n| `credenciais:admin` | emitir e revogar credenciais — nunca num preset de agente |\n\nUma credencial de **atendimento** (o bot do canal) carrega ainda um\n`titular`: ela alcança só o compromisso do cliente daquela conversa, e\ncompromisso de terceiro responde 404. Consulte `GET /credenciais/eu` para\ndescobrir a própria autoridade antes de tentar uma ação.\n",
     "version": "0.4.0"
   },
   "servers": [
@@ -809,6 +809,270 @@
         ]
       }
     },
+    "/resources/{resource_id}": {
+      "patch": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Altera um recurso (parcial)",
+        "description": "**Escopo:** `agenda:admin`\n\nSó os campos enviados mudam. Renomear não afeta agendamentos: eles apontam para o id. Reative um recurso desativado com `{ativo: true}`.",
+        "operationId": "alterar_resource_resources__resource_id__patch",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      },
+      "delete": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Desativa um recurso (soft delete)",
+        "description": "**Escopo:** `agenda:admin`\n\nComo em serviços: o recurso sai do catálogo e da oferta de slots, mas os agendamentos e o histórico dele continuam existindo — apagar de verdade deixaria compromissos apontando para o vazio. A grade semanal e os bloqueios permanecem, e voltam a valer se o recurso for reativado com PATCH `{ativo: true}`. Idempotente.",
+        "operationId": "desativar_resource_resources__resource_id__delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
     "/availability/rules": {
       "post": {
         "tags": [
@@ -952,6 +1216,27 @@
         ],
         "summary": "Grade semanal da organização",
         "operationId": "listar_rules_availability_rules_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Só a grade deste recurso",
+              "title": "Resource Id"
+            },
+            "description": "Só a grade deste recurso"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1042,6 +1327,175 @@
         },
         "x-escopo-requerido": "agenda:read",
         "description": "**Escopo:** `agenda:read`"
+      },
+      "put": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Define a semana inteira de um recurso (substitui a grade)",
+        "description": "**Escopo:** `agenda:admin`\n\nDeclarativo: descreva a semana **como ela deve ficar** e o servidor faz a diferença numa transação só. Substitui todas as janelas do recurso — `janelas: []` limpa a grade. Prefira isto a remendar janela a janela: listar, remover uma, criar duas e esquecer nenhuma é onde um agente erra. Aceita Idempotency-Key.",
+        "operationId": "definir_grade_availability_rules_put",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Recurso cuja semana está sendo definida",
+              "title": "Resource Id"
+            },
+            "description": "Recurso cuja semana está sendo definida"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeSemanaIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeSemanaOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PERIODO_INVALIDO": {
+                    "summary": "Fim antes do início",
+                    "value": {
+                      "code": "PERIODO_INVALIDO",
+                      "message": "O fim do bloqueio precisa ser depois do início.",
+                      "hint": "Inverta os valores ou confira o offset de fuso.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
       }
     },
     "/availability/rules/{rule_id}": {
@@ -5422,6 +5876,357 @@
         },
         "x-escopo-requerido": "nenhum (qualquer credencial autenticada)"
       }
+    },
+    "/credenciais": {
+      "get": {
+        "tags": [
+          "credenciais"
+        ],
+        "summary": "Credenciais de agente da organização",
+        "description": "**Escopo:** `credenciais:admin`\n\nQuem tem acesso à agenda por integração, com que autoridade e quando usou pela última vez. O token **nunca** volta aqui: o banco guarda só o SHA-256, e o `prefixo` existe para você identificar a linha.",
+        "operationId": "listar_credenciais_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredencialOut"
+                  },
+                  "title": "Response Listar Credenciais Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "credenciais:admin"
+      },
+      "post": {
+        "tags": [
+          "credenciais"
+        ],
+        "summary": "Emite uma credencial de agente",
+        "description": "**Escopo:** `credenciais:admin`\n\nO token em claro aparece **uma única vez**, nesta resposta — guarde-o na hora. O papel é só o preset dos escopos; ajuste-os no corpo se precisar. `credenciais:admin` não pode ser concedido por aqui: uma credencial capaz de emitir outra sobreviveria à própria revogação. Aceita Idempotency-Key.",
+        "operationId": "emitir_credenciais_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredencialIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredencialCriadaOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  },
+                  "ESCOPO_NAO_DELEGAVEL": {
+                    "summary": "Este escopo não pode ser concedido por rota",
+                    "value": {
+                      "code": "ESCOPO_NAO_DELEGAVEL",
+                      "message": "`credenciais:admin` não pode ser concedido por esta rota.",
+                      "hint": "Uma credencial que emite credenciais sobrevive à própria revogação. Se realmente for necessário, emita pelo servidor: `make credencial`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "credenciais:admin",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      }
+    },
+    "/credenciais/{credencial_id}": {
+      "delete": {
+        "tags": [
+          "credenciais"
+        ],
+        "summary": "Revoga uma credencial de agente",
+        "description": "**Escopo:** `credenciais:admin`\n\nA credencial para de autenticar. Não é exclusão: a linha fica, com `revogada_em` preenchido, porque o log de auditoria aponta para ela e um log que referencia um id inexistente não responde 'quem fez isso'. Idempotente.",
+        "operationId": "revogar_credenciais__credencial_id__delete",
+        "parameters": [
+          {
+            "name": "credencial_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Credencial Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevogacaoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "credenciais:admin"
+      }
     }
   },
   "components": {
@@ -6129,6 +6934,212 @@
         "title": "ConflitoOcorrencia",
         "description": "Ocorrência que caiu em slot ocupado: a série não quebra (RF-15) —\nfica pendente com as 3 alternativas já propostas."
       },
+      "CredencialCriadaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "papel": {
+            "type": "string",
+            "title": "Papel"
+          },
+          "escopos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escopos"
+          },
+          "prefixo": {
+            "type": "string",
+            "title": "Prefixo",
+            "description": "Primeiros caracteres do token, só para identificar a linha"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          },
+          "criada_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Criada Em"
+          },
+          "ultimo_uso_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso Em",
+            "description": "Atualizado no máximo a cada 5 min, para não contender na linha"
+          },
+          "revogada_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revogada Em"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "O token em claro. Aparece UMA vez, nesta resposta: o banco guarda só o SHA-256. Perdeu, emita outra e revogue esta."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "papel",
+          "escopos",
+          "prefixo",
+          "ativo",
+          "criada_em",
+          "token"
+        ],
+        "title": "CredencialCriadaOut"
+      },
+      "CredencialIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Nome",
+            "description": "Como esta credencial aparece na tela e no log"
+          },
+          "papel": {
+            "type": "string",
+            "title": "Papel",
+            "description": "atendimento | operacao | administrativo"
+          },
+          "escopos": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escopos",
+            "description": "Ajuste fino. Ausente, usa os escopos do papel. O papel é só o preset — quem manda é esta lista."
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "papel"
+        ],
+        "title": "CredencialIn",
+        "description": "Emissão de credencial de agente. Só quem tem `credenciais:admin`.",
+        "examples": [
+          {
+            "nome": "Copiloto da recepção",
+            "papel": "operacao"
+          },
+          {
+            "escopos": [
+              "agenda:read",
+              "agenda:write"
+            ],
+            "nome": "Bot do Telegram",
+            "papel": "atendimento"
+          }
+        ]
+      },
+      "CredencialOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "papel": {
+            "type": "string",
+            "title": "Papel"
+          },
+          "escopos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escopos"
+          },
+          "prefixo": {
+            "type": "string",
+            "title": "Prefixo",
+            "description": "Primeiros caracteres do token, só para identificar a linha"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          },
+          "criada_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Criada Em"
+          },
+          "ultimo_uso_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso Em",
+            "description": "Atualizado no máximo a cada 5 min, para não contender na linha"
+          },
+          "revogada_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revogada Em"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "papel",
+          "escopos",
+          "prefixo",
+          "ativo",
+          "criada_em"
+        ],
+        "title": "CredencialOut",
+        "description": "A credencial como ela aparece na gestão. **Nunca** traz o token."
+      },
       "ErroOut": {
         "properties": {
           "code": {
@@ -6202,6 +7213,73 @@
         "title": "ErroOut",
         "description": "Todo erro da API tem este formato. O `hint` é escrito para o agente\nagir — quando possível, a saída já vem no payload (ex.: alternativas)."
       },
+      "GradeSemanaIn": {
+        "properties": {
+          "janelas": {
+            "items": {
+              "$ref": "#/components/schemas/JanelaSemana"
+            },
+            "type": "array",
+            "title": "Janelas",
+            "description": "A semana como deve ficar. Lista vazia limpa a grade do recurso."
+          }
+        },
+        "type": "object",
+        "required": [
+          "janelas"
+        ],
+        "title": "GradeSemanaIn",
+        "description": "A semana inteira de um recurso, como ela deve ficar.\n\nDeclarativo em vez de CRUD por um motivo prático: quando um agente\nprecisa listar, remover uma, criar duas e não esquecer nenhuma, ele erra.\nAqui ele descreve o resultado e o servidor faz a diferença — atômico.",
+        "examples": [
+          {
+            "janelas": [
+              {
+                "dia_semana": 0,
+                "hora_fim": "12:00",
+                "hora_inicio": "09:00"
+              },
+              {
+                "dia_semana": 0,
+                "hora_fim": "18:00",
+                "hora_inicio": "13:00"
+              },
+              {
+                "dia_semana": 1,
+                "hora_fim": "18:00",
+                "hora_inicio": "09:00"
+              }
+            ]
+          }
+        ]
+      },
+      "GradeSemanaOut": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "janelas": {
+            "items": {
+              "$ref": "#/components/schemas/RuleOut"
+            },
+            "type": "array",
+            "title": "Janelas"
+          },
+          "removidas": {
+            "type": "integer",
+            "title": "Removidas",
+            "description": "Quantas janelas anteriores foram substituídas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "janelas",
+          "removidas"
+        ],
+        "title": "GradeSemanaOut"
+      },
       "HistoricoOut": {
         "properties": {
           "acao": {
@@ -6270,6 +7348,35 @@
           "em"
         ],
         "title": "HistoricoOut"
+      },
+      "JanelaSemana": {
+        "properties": {
+          "dia_semana": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Dia Semana",
+            "description": "0=segunda … 6=domingo"
+          },
+          "hora_inicio": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Inicio"
+          },
+          "hora_fim": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Fim"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dia_semana",
+          "hora_inicio",
+          "hora_fim"
+        ],
+        "title": "JanelaSemana",
+        "description": "Uma janela de trabalho, sem id: na definição declarativa a grade é\ndescrita inteira, não remendada janela a janela."
       },
       "Pagina_ResourceOut_": {
         "properties": {
@@ -6679,6 +7786,73 @@
           "ativo"
         ],
         "title": "ResourceOut"
+      },
+      "ResourcePatch": {
+        "properties": {
+          "nome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          },
+          "tipo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
+          },
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          }
+        },
+        "type": "object",
+        "title": "ResourcePatch",
+        "description": "Alteração parcial: só os campos enviados mudam."
+      },
+      "RevogacaoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "revogada": {
+            "type": "boolean",
+            "title": "Revogada",
+            "description": "false = já estava revogada (revogar é idempotente)"
+          },
+          "aviso": {
+            "type": "string",
+            "title": "Aviso",
+            "description": "A revogação leva até o TTL do cache de credenciais para valer em todo processo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "revogada",
+          "aviso"
+        ],
+        "title": "RevogacaoOut"
       },
       "RuleIn": {
         "properties": {
@@ -7320,7 +8494,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Agent-Key",
-        "description": "Chave estática de agente (fase 1 do conector — vira OAuth 2.1 no agenda-mcp). Ações irreversíveis pedem confirmação humana."
+        "description": "Chave estática de agente (caminho legado da UI — resolve em `agent_credentials` primeiro). Prefira `Authorization: Bearer agk_…`, que é revogável e tem escopos próprios. Ações irreversíveis pedem confirmação humana."
       }
     }
   },

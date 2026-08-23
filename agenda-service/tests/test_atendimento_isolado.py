@@ -16,12 +16,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app import enderecos
-from app.auth import Credencial, credencial_atual, escopos_do_papel
+from app.auth import credencial_atual, escopos_do_papel
 from app.errors import ApiError
 from app.main import app
 from app.sessao_atendimento import emitir, validar
 
-from .conftest import integracao
+from .conftest import credencial_falsa, integracao
 
 TITULAR = "+5511999998888"
 OUTRO = "+5511777776666"
@@ -134,12 +134,8 @@ def como_titular(org_id):
     """Uma sessão de atendimento: read + write, e um titular provado."""
 
     def usar(telefone=TITULAR):
-        app.dependency_overrides[credencial_atual] = lambda: Credencial(
-            org_id=org_id,
-            escopos=escopos_do_papel("atendimento"),
-            ator="agente",
-            titular=telefone,
-            nome="atendimento",
+        app.dependency_overrides[credencial_atual] = credencial_falsa(
+            org_id, "atendimento", ator="agente", titular=telefone, nome="atendimento"
         )
 
     usar()
@@ -267,12 +263,8 @@ def test_sem_operacao_nao_ve_risco_nem_observacoes(client, catalogo, org_id):
     meu = _agendar(client, catalogo, TITULAR, observacoes="cliente costuma atrasar")
     assert meu["observacoes"] == "cliente costuma atrasar"  # X-Org-Id = autoridade total
 
-    app.dependency_overrides[credencial_atual] = lambda: Credencial(
-        org_id=org_id,
-        escopos=escopos_do_papel("atendimento"),
-        ator="agente",
-        titular=TITULAR,
-        nome="atendimento",
+    app.dependency_overrides[credencial_atual] = credencial_falsa(
+        org_id, "atendimento", ator="agente", titular=TITULAR, nome="atendimento"
     )
     try:
         visto = client.post(f"/appointments/{meu['id']}/confirm").json()

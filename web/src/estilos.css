@@ -336,6 +336,19 @@ table.lista td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
 }
 .qr-quadro img { display: block; width: 240px; height: 240px; image-rendering: pixelated; }
 
+/* O token recém-emitido: a única coisa da tela que não dá para ver duas vezes.
+   Terracota é a cor de ação do sistema — aqui ela diz "faça algo com isto
+   agora", não "deu erro". */
+.cartao.destaque {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+.cartao.destaque .mono {
+  background: var(--bg-sunk);
+  border-radius: var(--r-3);
+  padding: 12px 14px;
+}
+
 .aviso-erro {
   background: rgba(192, 67, 45, 0.09);
   border: 1px solid rgba(192, 67, 45, 0.3);
