@@ -12,6 +12,7 @@ ADMIN_URL = os.environ.get(
 _HOSTPORT = ADMIN_URL.rsplit("@", 1)[1].rsplit("/", 1)[0]
 TEST_URL = f"postgresql+psycopg://canal_app:canal_app@{_HOSTPORT}/canal_test"
 os.environ["DATABASE_URL"] = TEST_URL
+os.environ.setdefault("SESSAO_ATENDIMENTO_SECRET", "segredo-de-sessao-teste")
 os.environ["APP_ENV"] = "dev"
 os.environ.setdefault("CANAL_CRYPTO_KEY", Fernet.generate_key().decode())
 # Drivers de nuvem (telegram) exigem base pública para registrar o webhook

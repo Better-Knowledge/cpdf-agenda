@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     # X-Service-Key + X-Org-Id (a org vem do inbound do canal, não da chave).
     agenda_service_key: str = ""
 
+    # RF-19 — segredo do token de sessão de atendimento. COMPARTILHADO com o
+    # canal-service, que é quem cunha o token (é lá que o endereço do cliente é
+    # provado). Vazio em produção derruba a emissão: melhor falhar do que
+    # assinar com um segredo público.
+    sessao_atendimento_secret: str = ""
+    # Virada do isolamento (RF-19). Desligada, `X-Service-Key` ainda resolve
+    # para autoridade total — é como o agente-service antigo fala. Ligada, essa
+    # porta fecha e todo atendimento passa pelo token de sessão.
+    atendimento_isolado: bool = False
+
     canal_service_url: str = "http://canal-service:8000"
     canal_service_key: str = ""
 

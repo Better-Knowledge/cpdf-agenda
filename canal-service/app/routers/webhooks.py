@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from .. import sessao_atendimento
 from ..config import settings
 from ..db import SessionLocal, sessao_org, sessao_worker
 from ..drivers.base import DriverCanal, MensagemInbound
@@ -34,10 +35,16 @@ log = logging.getLogger("canal.inbound")
 router = APIRouter(tags=["webhooks"])
 
 
-def encaminhar_ao_orquestrador(org_id: uuid.UUID, inbound: MensagemInbound) -> None:
+def encaminhar_ao_orquestrador(
+    org_id: uuid.UUID, inbound: MensagemInbound, sessao: str
+) -> None:
     """Entrega o inbound normalizado ao agente (PRD §9.1) — fora do caminho do
     2xx ao driver. Falha aqui não derruba o webhook: fica logada; a mensagem já
-    está em channel_messages e o humano vê a conversa mesmo sem agente."""
+    está em channel_messages e o humano vê a conversa mesmo sem agente.
+
+    O `sessao` é a autoridade do agente na agenda (RF-19): ele não fala pela
+    organização, fala por este cliente. O `telefone` segue no payload para
+    log e resposta pelo canal, mas quem a agenda obedece é o token."""
     cfg = settings()
     try:
         resposta = httpx.post(
@@ -48,6 +55,7 @@ def encaminhar_ao_orquestrador(org_id: uuid.UUID, inbound: MensagemInbound) -> N
                 "texto": inbound.texto,
                 "message_id": inbound.message_id,
                 "timestamp": inbound.timestamp.isoformat() if inbound.timestamp else None,
+                "sessao": sessao,
             },
             headers={"X-Service-Key": cfg.orquestrador_key},
             timeout=30,
@@ -146,7 +154,16 @@ def _processar(driver_obj: DriverCanal, inbound: MensagemInbound, token: str) ->
 
         db.commit()
         log.info("inbound %s de %s registrado (id %s)", driver_obj.nome, inbound.telefone, gravado)
-        return {"resultado": "registrado", "message_id": gravado, "org_id": config.org_id}
+        # RF-19: aqui — e só aqui — o endereço do cliente está provado, pelo
+        # compare_digest lá em cima. O token carrega esse fato assinado até a
+        # agenda; sem ele, o agente teria de se declarar dono do telefone, que
+        # é o mesmo que não haver fronteira nenhuma.
+        return {
+            "resultado": "registrado",
+            "message_id": gravado,
+            "org_id": config.org_id,
+            "sessao": sessao_atendimento.emitir(config.org_id, inbound.telefone),
+        }
 
 
 def _receber(nome_driver: str):
@@ -179,9 +196,10 @@ def _receber(nome_driver: str):
             return {"resultado": "erro_interno_logado"}
         # Registrado → segue ao agente DEPOIS do 2xx ao driver (assíncrono).
         org_id = resultado.pop("org_id", None)
+        sessao = resultado.pop("sessao", None)
         if resultado["resultado"] == "registrado" and org_id and settings().orquestrador_url:
             resultado["encaminhado"] = True
-            background.add_task(encaminhar_ao_orquestrador, org_id, inbound)
+            background.add_task(encaminhar_ao_orquestrador, org_id, inbound, sessao)
         return resultado
 
     return endpoint

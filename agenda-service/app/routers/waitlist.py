@@ -15,9 +15,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
-from .. import canal_client, fila
+from .. import canal_client, enderecos, fila
 from .. import idempotency as idem
-from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..auth import ESCOPO_OPERACAO, Credencial, credencial_atual, exigir_escopo
 from ..booking import (
     carregar_servico,
     criar_appointment,
@@ -29,7 +29,7 @@ from ..errors import ApiError, NaoEncontrado
 from ..models import WaitlistEntry
 from ..schemas import AppointmentOut, WaitlistIn, WaitlistOut
 from ..tempo import label_humano, utc
-from .appointments import _out
+from .appointments import _e_do_titular, _exigir_titular, _out
 
 log = logging.getLogger("agenda.fila")
 router = APIRouter(tags=["fila de espera"])
@@ -86,7 +86,7 @@ def _em_optout(org_id: UUID, telefone: str) -> bool:
         "fila recebe a oferta pelo canal. **Não há reserva**: o horário segue livre "
         "na grade e quem confirmar primeiro leva. Aceita Idempotency-Key."
     ),
-    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO"),
+    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO", "TITULAR_DIVERGENTE"),
     openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def entrar(
@@ -98,6 +98,7 @@ def entrar(
     exigir_escopo(cred, "agenda:write")
     if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
+    telefone = _exigir_titular(cred, dados.cliente_telefone)
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     if dados.resource_id is not None:
         recursos = [r for r in recursos_do_servico(db, servico) if r.id == dados.resource_id]
@@ -109,7 +110,7 @@ def entrar(
         service_id=servico.id,
         resource_id=dados.resource_id,
         cliente_nome=dados.cliente_nome,
-        cliente_telefone=dados.cliente_telefone,
+        cliente_telefone=telefone,
         janela_desejada=Range(utc(dados.janela_inicio), utc(dados.janela_fim)),
     )
     db.add(entrada)
@@ -118,7 +119,7 @@ def entrar(
     # RF-14/RF-10: quem está em opt-out não recebe oferta automática. A entrada
     # vale (o prestador pode ligar), mas o aviso precisa ser explícito.
     avisos: list[str] = []
-    if _em_optout(cred.org_id, dados.cliente_telefone):
+    if _em_optout(cred.org_id, telefone):
         avisos.append(
             "Este cliente pediu para não receber mensagens: ele NÃO será avisado "
             "automaticamente quando abrir vaga — combine o contato por outro meio."
@@ -126,7 +127,7 @@ def entrar(
         # TODO(etapa de integrações): criar tarefa no tasks-service para o humano.
         log.warning(
             "fila %s: cliente %s em opt-out — oferta automática não sairá",
-            entrada.id, dados.cliente_telefone,
+            entrada.id, telefone,
         )
 
     corpo = _saida(entrada, posicao=_posicao(db, entrada), avisos=avisos)
@@ -169,6 +170,12 @@ def listar(
     db.commit()
 
     q = select(WaitlistEntry).where(WaitlistEntry.org_id == cred.org_id)
+    if cred.titular:
+        # A fila inteira é nome + telefone + horário de todo mundo que espera.
+        # O agente de atendimento recebe só a própria linha — e por vir
+        # filtrado da API, o cliente do outro lado não precisa lembrar de
+        # filtrar (era esse esquecimento que vazava a fila no fluxo do agente).
+        q = q.where(WaitlistEntry.cliente_telefone == enderecos.normalizar(cred.titular))
     if service_id:
         q = q.where(WaitlistEntry.service_id == service_id)
     if not incluir_encerrados:
@@ -183,7 +190,7 @@ def _carregar(db: Session, cred: Credencial, entry_id: UUID) -> WaitlistEntry:
             WaitlistEntry.id == entry_id, WaitlistEntry.org_id == cred.org_id
         )
     )
-    if entrada is None:
+    if entrada is None or not _e_do_titular(cred, entrada.cliente_telefone):
         raise NaoEncontrado("Entrada da fila", str(entry_id))
     return entrada
 
@@ -268,7 +275,7 @@ def aceitar(
         observacoes="Veio da fila de espera",
     )
     entrada.status = "aceito"
-    corpo = _out(ap)
+    corpo = _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     return corpo

@@ -5,9 +5,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import confirmacao, ofertas
+from .. import confirmacao, enderecos, ofertas
 from .. import idempotency as idem
-from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..auth import ESCOPO_OPERACAO, Credencial, credencial_atual, exigir_escopo
 from ..booking import (
     _evento,
     _historico,
@@ -33,7 +33,16 @@ from ..tempo import TZ, label_humano
 router = APIRouter(tags=["agendamentos"])
 
 
-def _out(ap: Appointment) -> AppointmentOut:
+def _out(ap: Appointment, completo: bool = True) -> AppointmentOut:
+    """`completo=False` esconde risco de falta e observações.
+
+    Não é redundância com a guarda de titular: quem tem só atendimento passa
+    na guarda (o compromisso É do cliente dele) e ainda assim não deve
+    receber esses campos. São dados *sobre* o cliente, produzidos pela
+    operação — um bot dizendo "você é risco alto de faltar", ou lendo em voz
+    alta a observação "cliente difícil", é dano que a posse do registro não
+    autoriza.
+    """
     return AppointmentOut(
         id=ap.id,
         service_id=ap.service_id,
@@ -45,9 +54,9 @@ def _out(ap: Appointment) -> AppointmentOut:
         label_humano=label_humano(ap.periodo.lower),
         status=ap.status,
         origem=ap.origem,
-        risco_no_show=ap.risco_no_show,
-        risco_detalhe=ap.risco_detalhe,
-        observacoes=ap.observacoes,
+        risco_no_show=ap.risco_no_show if completo else None,
+        risco_detalhe=ap.risco_detalhe if completo else None,
+        observacoes=ap.observacoes if completo else None,
         series_id=ap.series_id,
     )
 
@@ -58,9 +67,32 @@ def _carregar(db: Session, cred: Credencial, appointment_id: UUID) -> Appointmen
             Appointment.id == appointment_id, Appointment.org_id == cred.org_id
         )
     )
-    if ap is None:
+    if ap is None or not _e_do_titular(cred, ap.cliente_telefone):
+        # 404, não 403: responder "existe, mas não é seu" confirmaria a
+        # existência do compromisso — e com id sequencial ou adivinhado isso
+        # já é vazamento. Para quem não é dono, o registro simplesmente não há.
         raise NaoEncontrado("Compromisso", str(appointment_id))
     return ap
+
+
+def _e_do_titular(cred: Credencial, telefone: str) -> bool:
+    """Sem titular, a credencial é da organização e alcança tudo dela."""
+    return cred.titular is None or enderecos.mesmo(telefone, cred.titular)
+
+
+def _exigir_titular(cred: Credencial, telefone: str) -> str:
+    """Endereço normalizado para gravar, recusando escrita em nome de terceiro."""
+    if not _e_do_titular(cred, telefone):
+        raise ApiError(
+            code="TITULAR_DIVERGENTE",
+            message="Esta sessão de atendimento não fala pelo cliente informado.",
+            hint=(
+                "O token de sessão é cunhado pelo canal para o cliente que "
+                "escreveu. Omita `cliente_telefone` ou use o endereço da conversa."
+            ),
+            status_code=403,
+        )
+    return enderecos.normalizar(telefone)
 
 
 @router.post(
@@ -74,7 +106,7 @@ def _carregar(db: Session, cred: Credencial, appointment_id: UUID) -> Appointmen
         "Horário ocupado responde 409 SLOT_INDISPONIVEL com as 3 alternativas mais "
         "próximas já no payload. Aceita Idempotency-Key (obrigatório para agentes)."
     ),
-    responses=respostas("NAO_ENCONTRADO", "SLOT_INDISPONIVEL", "DATA_SEM_FUSO"),
+    responses=respostas("NAO_ENCONTRADO", "SLOT_INDISPONIVEL", "DATA_SEM_FUSO", "TITULAR_DIVERGENTE"),
     openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def agendar(
@@ -86,6 +118,7 @@ def agendar(
     exigir_escopo(cred, "agenda:write")
     if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
+    telefone = _exigir_titular(cred, dados.cliente_telefone)
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     recursos = recursos_do_servico(db, servico)
     if dados.resource_id is not None:
@@ -103,7 +136,7 @@ def agendar(
                 recurso.id,
                 dados.inicio,
                 dados.cliente_nome,
-                dados.cliente_telefone,
+                telefone,
                 dados.origem,
                 dados.observacoes,
             )
@@ -119,7 +152,7 @@ def agendar(
             hint="Consulte GET /slots e ofereça as alternativas ao cliente.",
             status_code=409,
         )
-    corpo = _out(ap)
+    corpo = _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
@@ -159,7 +192,7 @@ def reagendar_endpoint(
         )
     servico = carregar_servico(db, cred.org_id, ap.service_id)
     ap = reagendar(db, ap, servico, dados.novo_inicio, cred.ator, dados.motivo)
-    corpo = _out(ap)
+    corpo = _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     return corpo
@@ -197,7 +230,7 @@ def cancelar(
         return repetida
     ap = _carregar(db, cred, appointment_id)
     if ap.status == "cancelado":
-        return _out(ap)  # idempotente por natureza
+        return _out(ap, completo=cred.pode(ESCOPO_OPERACAO))  # idempotente por natureza
     if cred.ator == "agente":
         if dados.confirmation_token is None:
             raise ApiError(
@@ -222,7 +255,7 @@ def cancelar(
     ap.status = "cancelado"
     _historico(db, ap, "cancelado", de=anterior, origem=cred.ator, motivo=dados.motivo)
     _evento(db, ap, "agenda.appointment.canceled")
-    corpo = _out(ap)
+    corpo = _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     # RF-14: o horário voltou para a grade — quem está na fila é avisado logo
@@ -259,7 +292,7 @@ def confirmar(
     ap.status = "confirmado"
     _historico(db, ap, "confirmado", origem=cred.ator)
     db.commit()
-    return _out(ap)
+    return _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
 
 
 @router.post(
@@ -283,7 +316,7 @@ def no_show(
     ap.status = "no_show"
     _historico(db, ap, "no_show", origem=cred.ator)
     db.commit()
-    return _out(ap)
+    return _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
 
 
 @router.get(
@@ -316,7 +349,7 @@ def listar(
     )
     if resource_id:
         q = q.where(Appointment.resource_id == resource_id)
-    return [_out(a) for a in db.scalars(q.order_by(Appointment.periodo))]
+    return [_out(a) for a in db.scalars(q.order_by(Appointment.periodo))]  # exige operacao
 
 
 @router.get(
@@ -342,11 +375,15 @@ def proximo(
     exigir_escopo(cred, "agenda:read")
     from sqlalchemy import text as sql_text
 
+    # Numa sessão de atendimento o parâmetro é ignorado: quem responde é o
+    # titular provado pelo canal. Sem isso a rota vira enumeração — um
+    # telefone por chamada, e o agente descobre a agenda inteira.
+    alvo = enderecos.normalizar(cred.titular or telefone)
     ap = db.scalars(
         select(Appointment)
         .where(
             Appointment.org_id == cred.org_id,
-            Appointment.cliente_telefone == telefone,
+            Appointment.cliente_telefone == alvo,
             Appointment.status.in_(("agendado", "confirmado")),
             sql_text("lower(periodo) > now()"),
         )
@@ -354,8 +391,8 @@ def proximo(
         .limit(1)
     ).first()
     if ap is None:
-        raise NaoEncontrado("Compromisso futuro do telefone", telefone)
-    return _out(ap)
+        raise NaoEncontrado("Compromisso futuro do telefone", alvo)
+    return _out(ap, completo=cred.pode(ESCOPO_OPERACAO))
 
 
 @router.get(

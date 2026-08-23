@@ -115,6 +115,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -228,6 +237,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -371,6 +389,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -488,6 +515,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -594,6 +630,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -687,6 +732,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -795,6 +849,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -917,6 +980,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -1024,6 +1096,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -1164,6 +1245,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -1260,6 +1350,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -1371,6 +1470,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -1463,6 +1571,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -1684,6 +1801,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -1822,6 +1948,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -1841,6 +1976,15 @@
                       "code": "ESCOPO_INSUFICIENTE",
                       "message": "A credencial não tem o escopo 'agenda:cancel'.",
                       "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  },
+                  "TITULAR_DIVERGENTE": {
+                    "summary": "A sessão de atendimento fala por outro cliente",
+                    "value": {
+                      "code": "TITULAR_DIVERGENTE",
+                      "message": "Esta sessão de atendimento não fala pelo cliente informado.",
+                      "hint": "O token de sessão é cunhado pelo canal para o cliente que escreveu. Omita `cliente_telefone` ou use o endereço da conversa.",
                       "retryable": false
                     }
                   }
@@ -2028,6 +2172,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2144,6 +2297,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -2350,6 +2512,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2514,6 +2685,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2654,6 +2834,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2775,6 +2964,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2894,6 +3092,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -2993,6 +3200,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -3113,6 +3329,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -3132,6 +3357,15 @@
                       "code": "ESCOPO_INSUFICIENTE",
                       "message": "A credencial não tem o escopo 'agenda:cancel'.",
                       "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  },
+                  "TITULAR_DIVERGENTE": {
+                    "summary": "A sessão de atendimento fala por outro cliente",
+                    "value": {
+                      "code": "TITULAR_DIVERGENTE",
+                      "message": "Esta sessão de atendimento não fala pelo cliente informado.",
+                      "hint": "O token de sessão é cunhado pelo canal para o cliente que escreveu. Omita `cliente_telefone` ou use o endereço da conversa.",
                       "retryable": false
                     }
                   }
@@ -3283,6 +3517,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -3447,6 +3690,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -3466,6 +3718,15 @@
                       "code": "ESCOPO_INSUFICIENTE",
                       "message": "A credencial não tem o escopo 'agenda:cancel'.",
                       "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  },
+                  "TITULAR_DIVERGENTE": {
+                    "summary": "A sessão de atendimento fala por outro cliente",
+                    "value": {
+                      "code": "TITULAR_DIVERGENTE",
+                      "message": "Esta sessão de atendimento não fala pelo cliente informado.",
+                      "hint": "O token de sessão é cunhado pelo canal para o cliente que escreveu. Omita `cliente_telefone` ou use o endereço da conversa.",
                       "retryable": false
                     }
                   }
@@ -3620,6 +3881,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -3737,6 +4007,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -3866,6 +4145,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -4031,6 +4319,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 }
               }
@@ -4144,6 +4441,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -4272,6 +4578,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -4408,6 +4723,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -4551,6 +4875,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 }
               }
@@ -4667,6 +5000,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 }
               }
@@ -4775,6 +5117,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }
@@ -4893,6 +5244,15 @@
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
                       "retryable": false
                     }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
                   }
                 },
                 "schema": {
@@ -5001,6 +5361,15 @@
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
                       "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
                       "retryable": false
                     }
                   }

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import confirmacao
 from .. import idempotency as idem
-from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..auth import ESCOPO_OPERACAO, Credencial, credencial_atual, exigir_escopo
 from ..booking import (
     _evento,
     _historico,
@@ -33,7 +33,7 @@ from ..schemas import (
     SeriesCancelIn,
 )
 from ..tempo import TZ, label_humano
-from .appointments import _out
+from .appointments import _exigir_titular, _out
 
 router = APIRouter(tags=["recorrência"])
 
@@ -50,7 +50,7 @@ router = APIRouter(tags=["recorrência"])
         "série: volta em `conflitos`, já com as 3 alternativas — ofereça-as ao cliente "
         "e agende com POST /appointments. Aceita Idempotency-Key."
     ),
-    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO"),
+    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO", "TITULAR_DIVERGENTE"),
     openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_serie(
@@ -62,6 +62,7 @@ def criar_serie(
     exigir_escopo(cred, "agenda:write")
     if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
+    telefone = _exigir_titular(cred, dados.cliente_telefone)
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     recursos = recursos_do_servico(db, servico)
     if dados.resource_id is not None:
@@ -96,12 +97,12 @@ def criar_serie(
                 recurso.id,
                 quando,
                 dados.cliente_nome,
-                dados.cliente_telefone,
+                telefone,
                 dados.origem,
                 dados.observacoes,
                 series_id=serie.id,
             )
-            criadas.append(_out(ap))
+            criadas.append(_out(ap, completo=cred.pode(ESCOPO_OPERACAO)))
         except ApiError as e:
             if e.code != "SLOT_INDISPONIVEL":
                 raise
