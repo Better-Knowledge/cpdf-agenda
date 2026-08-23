@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import idempotency as idem
 from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..errors import NaoEncontrado
 from ..models import Resource, Service, ServiceResource
@@ -24,6 +25,8 @@ router = APIRouter(tags=["catálogo"])
         "Use antes de consultar slots ou agendar: o service_id daqui é obrigatório "
         "nas demais chamadas. Paginação por limit/cursor."
     ),
+    responses=respostas("CURSOR_INVALIDO"),
+    openapi_extra=operacao("agenda:read"),
 )
 def listar_services(
     request: Request,
@@ -59,6 +62,8 @@ def listar_services(
         "Alterar a duração depois não muda agendamentos já existentes (RF-01). "
         "Aceita Idempotency-Key."
     ),
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_service(
     dados: ServiceIn,
@@ -100,6 +105,8 @@ def _carregar(db: Session, cred: Credencial, service_id: UUID) -> Service:
         "existentes (RF-01) — só afeta slots e agendamentos futuros. resource_ids, "
         "quando enviado, substitui os vínculos atuais."
     ),
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:write"),
 )
 def alterar_service(
     service_id: UUID,
@@ -133,6 +140,8 @@ def alterar_service(
         "slots, mas agendamentos e histórico existentes ficam intactos. Reative com "
         "PATCH {ativo: true}. Idempotente."
     ),
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:write"),
 )
 def desativar_service(
     service_id: UUID,

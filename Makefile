@@ -1,4 +1,4 @@
-.PHONY: dev-db migrate migrate-canal test test-agenda test-canal lint up down
+.PHONY: dev-db migrate migrate-canal test test-agenda test-canal lint openapi up down
 
 dev-db:            ## sobe Postgres local de desenvolvimento
 	docker compose --profile dev up -d db
@@ -20,6 +20,9 @@ test-canal:
 lint:
 	cd agenda-service && uv run ruff check app tests
 	cd canal-service && uv run ruff check app tests
+
+openapi:           ## exporta o contrato para docs/openapi.json (RF-17)
+	cd agenda-service && uv run python scripts/exportar_openapi.py
 
 web-dev:           ## UI em modo dev (proxy para a API local)
 	cd web && npm install && npm run dev

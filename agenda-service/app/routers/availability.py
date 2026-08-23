@@ -7,10 +7,19 @@ from sqlalchemy.orm import Session
 
 from .. import idempotency as idem
 from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..errors import ApiError, NaoEncontrado
 from ..models import AvailabilityBlock, AvailabilityRule, Resource
-from ..schemas import BlockIn, BlockOut, RuleIn, RuleOut, RulePatch
+from ..schemas import (
+    BlockIn,
+    BlockOut,
+    RemocaoBloqueioOut,
+    RemocaoRegraOut,
+    RuleIn,
+    RuleOut,
+    RulePatch,
+)
 from ..tempo import utc
 
 router = APIRouter(tags=["grade"])
@@ -28,7 +37,9 @@ def _exigir_recurso(db: Session, cred: Credencial, resource_id) -> None:
     response_model=RuleOut,
     status_code=201,
     summary="Adiciona janela de trabalho semanal a um recurso",
-    description="dia_semana: 0=segunda … 6=domingo. Horas em hora local America/Sao_Paulo (RF-02).",
+    description="dia_semana: 0=segunda … 6=domingo. Horas em hora local America/Sao_Paulo (RF-02). Aceita Idempotency-Key.",
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_rule(
     dados: RuleIn,
@@ -49,7 +60,13 @@ def criar_rule(
     return corpo
 
 
-@router.get("/availability/rules", response_model=list[RuleOut], summary="Grade semanal da organização")
+@router.get(
+    "/availability/rules",
+    response_model=list[RuleOut],
+    summary="Grade semanal da organização",
+    responses=respostas(),
+    openapi_extra=operacao("agenda:read"),
+)
 def listar_rules(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
@@ -68,6 +85,8 @@ def listar_rules(
     response_model=RuleOut,
     summary="Altera uma janela da grade semanal",
     description="Só os campos enviados mudam. A alteração vale para os slots futuros na hora.",
+    responses=respostas("NAO_ENCONTRADO", "PERIODO_INVALIDO"),
+    openapi_extra=operacao("agenda:write"),
 )
 def alterar_rule(
     rule_id: UUID,
@@ -103,6 +122,9 @@ def alterar_rule(
         "de oferecer os horários desta janela imediatamente; agendamentos já feitos "
         "não mudam. Idempotente: remover de novo devolve o mesmo resultado."
     ),
+    response_model=RemocaoRegraOut,
+    responses=respostas(),
+    openapi_extra=operacao("agenda:write"),
 )
 def remover_rule(
     rule_id: UUID,
@@ -126,6 +148,9 @@ def remover_rule(
         "Exclusão real: os horários do período voltam a ser ofertados na hora. "
         "Idempotente."
     ),
+    response_model=RemocaoBloqueioOut,
+    responses=respostas(),
+    openapi_extra=operacao("agenda:write"),
 )
 def remover_block(
     block_id: UUID,
@@ -147,6 +172,8 @@ def remover_block(
     response_model=list[BlockOut],
     summary="Bloqueios pontuais vigentes ou futuros",
     description="Lista bloqueios cujo fim ainda não passou. Filtre por recurso se quiser.",
+    responses=respostas(),
+    openapi_extra=operacao("agenda:read"),
 )
 def listar_blocks(
     resource_id: UUID | None = None,
@@ -177,7 +204,9 @@ def listar_blocks(
     response_model=BlockOut,
     status_code=201,
     summary="Bloqueia um período pontual (feriado, almoço, férias)",
-    description="Início e fim em ISO 8601 com offset. O motivo aparece na agenda do dia.",
+    description="Início e fim em ISO 8601 com offset. O motivo aparece na agenda do dia. Aceita Idempotency-Key.",
+    responses=respostas("NAO_ENCONTRADO", "PERIODO_INVALIDO", "DATA_SEM_FUSO"),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_block(
     dados: BlockIn,
