@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Recurso, Servico, api } from "../api";
 import { BotaoConfirmar } from "../Confirmar";
 import { ErroAviso } from "../ErroAviso";
+import { usarToast } from "../Toast";
 
 // T-04: cadastro e edição de serviços. Excluir é desativar (soft delete):
 // agendamentos e histórico existentes ficam intactos — regra da API.
@@ -24,6 +25,7 @@ export function Servicos() {
 
   const [editando, setEditando] = useState<string | null>(null); // id em edição
   const [form, setForm] = useState(FORM_VAZIO);
+  const avisar = usarToast();
 
   const carregar = useCallback(async () => {
     setServicos((await api.get<{ items: Servico[] }>("/services?limit=50")).items);
@@ -47,11 +49,12 @@ export function Servicos() {
     });
   }
 
-  async function agir(acao: () => Promise<unknown>) {
+  async function agir(acao: () => Promise<unknown>, feito: string) {
     setSalvando(true);
     setErro(null);
     try {
       await acao();
+      avisar(feito);
       await carregar();
       return true;
     } catch (e) {
@@ -71,14 +74,16 @@ export function Servicos() {
       buffer_antes_min: form.bufferAntes,
       buffer_depois_min: form.bufferDepois,
     };
-    const ok = await agir(() =>
-      editando
-        ? api.patch(`/services/${editando}`, {
-            ...corpo,
-            // em edição, só substitui vínculos se algo foi marcado
-            ...(form.recursosExigidos.length > 0 && { resource_ids: form.recursosExigidos }),
-          })
-        : api.post("/services", { ...corpo, resource_ids: form.recursosExigidos }),
+    const ok = await agir(
+      () =>
+        editando
+          ? api.patch(`/services/${editando}`, {
+              ...corpo,
+              // em edição, só substitui vínculos se algo foi marcado
+              ...(form.recursosExigidos.length > 0 && { resource_ids: form.recursosExigidos }),
+            })
+          : api.post("/services", { ...corpo, resource_ids: form.recursosExigidos }),
+      editando ? "Serviço salvo" : "Serviço cadastrado",
     );
     if (ok) {
       setForm(FORM_VAZIO);
@@ -87,19 +92,19 @@ export function Servicos() {
   }
 
   const linha = (s: Servico, ativo: boolean) => (
-    <tr key={s.id} style={ativo ? undefined : { color: "var(--grafite)" }}>
+    <tr key={s.id} style={ativo ? undefined : { color: "var(--fg-soft)" }}>
       <td>
         <strong>{s.nome}</strong>
       </td>
       <td className="mono">{s.duracao_min} min</td>
-      <td className="mono">R$ {s.preco}</td>
+      <td className="valor">R$ {s.preco}</td>
       <td className="mono">
         {s.buffer_antes_min} / {s.buffer_depois_min} min
       </td>
       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
         {ativo ? (
           <>
-            <button className="acao secundaria miuda" onClick={() => editar(s)}>
+            <button className="acao miuda" onClick={() => editar(s)}>
               Editar
             </button>{" "}
             <BotaoConfirmar
@@ -107,14 +112,18 @@ export function Servicos() {
               rotulo="Desativar"
               confirmacao="Desativar?"
               desabilitado={salvando}
-              onConfirmar={() => agir(() => api.delete(`/services/${s.id}`))}
+              onConfirmar={() =>
+                agir(() => api.delete(`/services/${s.id}`), "Serviço desativado — fora da oferta")
+              }
             />
           </>
         ) : (
           <button
-            className="acao secundaria miuda"
+            className="acao miuda"
             disabled={salvando}
-            onClick={() => agir(() => api.patch(`/services/${s.id}`, { ativo: true }))}
+            onClick={() =>
+              agir(() => api.patch(`/services/${s.id}`, { ativo: true }), "Serviço reativado")
+            }
           >
             Reativar
           </button>
@@ -125,7 +134,9 @@ export function Servicos() {
 
   return (
     <>
-      <h1>Serviços</h1>
+      <h1>
+        Seus <em>serviços</em>
+      </h1>
       <p className="subtitulo">
         O que a sua agenda oferece — duração, preço e folga entre atendimentos. Desativar um
         serviço tira ele da oferta sem mexer nos agendamentos já feitos.
@@ -165,9 +176,7 @@ export function Servicos() {
       </div>
 
       <form className="cartao" onSubmit={salvar}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>
-          {editando ? "Editar serviço" : "Novo serviço"}
-        </h2>
+        <h2 className="bloco">{editando ? "Editar serviço" : "Novo serviço"}</h2>
         <div className="formulario-linha">
           <label className="campo">
             Nome
@@ -241,17 +250,17 @@ export function Servicos() {
           </fieldset>
         )}
         {editando && (
-          <p style={{ fontSize: 13, color: "var(--grafite)", marginBottom: 10 }}>
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 10 }}>
             Mudar a duração vale para novos horários — agendamentos já feitos não mudam.
           </p>
         )}
-        <button className="acao" disabled={salvando || !form.nome.trim()}>
+        <button className="acao primario" disabled={salvando || !form.nome.trim()}>
           {salvando ? "Salvando…" : editando ? "Salvar alterações" : "Cadastrar serviço"}
         </button>{" "}
         {editando && (
           <button
             type="button"
-            className="acao secundaria"
+            className="acao"
             onClick={() => {
               setEditando(null);
               setForm(FORM_VAZIO);

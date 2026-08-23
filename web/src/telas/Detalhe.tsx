@@ -9,6 +9,7 @@ import {
   horaLocal,
 } from "../api";
 import { ErroAviso } from "../ErroAviso";
+import { usarToast } from "../Toast";
 
 // T-03: ficha completa + histórico (quem, quando, por quê) e as ações.
 // Cancelar segue o padrão propor → confirmar da própria API: a primeira
@@ -41,10 +42,20 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
 
   const [motivo, setMotivo] = useState("");
   const [tokenConfirmacao, setTokenConfirmacao] = useState<string | null>(null);
+  const avisar = usarToast();
 
   useEffect(() => {
     api.get<Historico[]>(`/appointments/${c.id}/history`).then(setHistorico).catch(() => {});
   }, [c.id]);
+
+  // Esc fecha o painel (DS §3.7)
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onFechar();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [onFechar]);
 
   useEffect(() => {
     if (modo !== "reagendar") return;
@@ -57,11 +68,12 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
       .catch(setErro);
   }, [modo, novaData, c.service_id, c.resource_id]);
 
-  async function executar(acao: () => Promise<unknown>) {
+  async function executar(acao: () => Promise<unknown>, feito: string) {
     setOcupado(true);
     setErro(null);
     try {
       await acao();
+      avisar(feito);
       onMudou();
     } catch (e) {
       // padrão propor → confirmar: o 409 traz a prévia e o token
@@ -108,20 +120,22 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
           <div className="acoes">
             {c.status === "agendado" && (
               <button
-                className="acao"
+                className="acao primario"
                 disabled={ocupado}
-                onClick={() => executar(() => api.post(`/appointments/${c.id}/confirm`))}
+                onClick={() =>
+                  executar(() => api.post(`/appointments/${c.id}/confirm`), "Presença confirmada")
+                }
               >
                 Confirmar presença
               </button>
             )}
-            <button className="acao secundaria" onClick={() => setModo("reagendar")}>
+            <button className="acao" onClick={() => setModo("reagendar")}>
               Reagendar
             </button>
-            <button className="acao perigosa" onClick={() => setModo("cancelar")}>
+            <button className="acao perigo" onClick={() => setModo("cancelar")}>
               Cancelar horário
             </button>
-            <button className="acao perigosa" onClick={() => setModo("falta")}>
+            <button className="acao perigo" onClick={() => setModo("falta")}>
               Marcar falta
             </button>
           </div>
@@ -145,8 +159,12 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
                       disabled={ocupado}
                       title={s.label_humano}
                       onClick={() =>
-                        executar(() =>
-                          api.post(`/appointments/${c.id}/reschedule`, { novo_inicio: s.inicio }),
+                        executar(
+                          () =>
+                            api.post(`/appointments/${c.id}/reschedule`, {
+                              novo_inicio: s.inicio,
+                            }),
+                          `Reagendado para ${s.label_humano}`,
                         )
                       }
                     >
@@ -156,7 +174,7 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
                 })}
               </div>
             )}
-            <button className="acao secundaria" onClick={() => setModo("ver")}>
+            <button className="acao" onClick={() => setModo("ver")}>
               Voltar
             </button>
           </div>
@@ -179,33 +197,40 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
                   para a grade na hora.
                 </p>
                 <button
-                  className="acao perigosa"
+                  className="acao perigo"
                   disabled={ocupado}
                   onClick={() =>
-                    executar(() =>
-                      api.post(`/appointments/${c.id}/cancel`, {
-                        motivo,
-                        confirmation_token: tokenConfirmacao,
-                      }),
+                    executar(
+                      () =>
+                        api.post(`/appointments/${c.id}/cancel`, {
+                          motivo,
+                          confirmation_token: tokenConfirmacao,
+                        }),
+                      "Horário cancelado — o slot voltou para a grade",
                     )
                   }
                 >
                   Confirmar cancelamento
                 </button>
-                <button className="acao secundaria" onClick={() => setTokenConfirmacao(null)}>
+                <button className="acao" onClick={() => setTokenConfirmacao(null)}>
                   Voltar
                 </button>
               </div>
             ) : (
               <div className="acoes">
                 <button
-                  className="acao perigosa"
+                  className="acao perigo"
                   disabled={ocupado || !motivo.trim()}
-                  onClick={() => executar(() => api.post(`/appointments/${c.id}/cancel`, { motivo }))}
+                  onClick={() =>
+                    executar(
+                      () => api.post(`/appointments/${c.id}/cancel`, { motivo }),
+                      "Horário cancelado — o slot voltou para a grade",
+                    )
+                  }
                 >
                   Cancelar horário
                 </button>
-                <button className="acao secundaria" onClick={() => setModo("ver")}>
+                <button className="acao" onClick={() => setModo("ver")}>
                   Voltar
                 </button>
               </div>
@@ -220,13 +245,15 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
               risco do cliente.
             </p>
             <button
-              className="acao perigosa"
+              className="acao perigo"
               disabled={ocupado}
-              onClick={() => executar(() => api.post(`/appointments/${c.id}/no-show`))}
+              onClick={() =>
+                executar(() => api.post(`/appointments/${c.id}/no-show`), "Falta registrada")
+              }
             >
               Registrar falta
             </button>
-            <button className="acao secundaria" onClick={() => setModo("ver")}>
+            <button className="acao" onClick={() => setModo("ver")}>
               Voltar
             </button>
           </div>

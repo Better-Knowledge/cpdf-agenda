@@ -26,7 +26,7 @@ export function BotaoConfirmar({
   return (
     <button
       type="button"
-      className={`acao perigosa${armado ? " armado" : ""}${miudo ? " miuda" : ""}`}
+      className={`acao perigo${armado ? " armado" : ""}${miudo ? " miuda" : ""}`}
       disabled={desabilitado}
       onClick={() => {
         if (armado) {

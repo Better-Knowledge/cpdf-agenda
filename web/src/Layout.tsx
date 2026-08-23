@@ -1,26 +1,29 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { sessao } from "./api";
+import { ToastProvider } from "./Toast";
 
 export function Layout() {
   const navegar = useNavigate();
+  const aba = ({ isActive }: { isActive: boolean }) => `aba${isActive ? " ativa" : ""}`;
   return (
-    <div className="aplicacao">
-      <nav className="trilho">
+    <ToastProvider>
+      <header className="topo">
         <div className="marca">
-          Agenda Inteligente
-          <small>painel do prestador</small>
+          Agenda <em>Inteligente</em>
         </div>
-        <NavLink to="/dia" className={({ isActive }) => (isActive ? "ativa" : "")}>
-          Agenda do dia
-        </NavLink>
-        <NavLink to="/servicos" className={({ isActive }) => (isActive ? "ativa" : "")}>
-          Serviços
-        </NavLink>
-        <NavLink to="/grade" className={({ isActive }) => (isActive ? "ativa" : "")}>
-          Grade e bloqueios
-        </NavLink>
-        <div className="rodape">
-          A operação acontece por conversa — aqui você configura e supervisiona.{" "}
+        <nav className="abas">
+          <NavLink to="/dia" className={aba}>
+            Agenda do dia
+          </NavLink>
+          <NavLink to="/servicos" className={aba}>
+            Serviços
+          </NavLink>
+          <NavLink to="/grade" className={aba}>
+            Grade e bloqueios
+          </NavLink>
+        </nav>
+        <div className="canto">
+          <span>Painel do prestador</span>
           <button
             type="button"
             onClick={() => {
@@ -31,10 +34,10 @@ export function Layout() {
             Sair
           </button>
         </div>
-      </nav>
+      </header>
       <main className="folha">
         <Outlet />
       </main>
-    </div>
+    </ToastProvider>
   );
 }

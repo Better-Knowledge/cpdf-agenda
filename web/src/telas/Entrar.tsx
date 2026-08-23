@@ -42,7 +42,9 @@ export function Entrar() {
   return (
     <div className="entrar">
       <form className="cartao" onSubmit={entrar}>
-        <h1>Agenda Inteligente</h1>
+        <h1>
+          Agenda <em>Inteligente</em>
+        </h1>
         <p className="subtitulo">Entre com a chave de acesso da sua organização.</p>
         <label className="campo">
           Chave de acesso
@@ -56,7 +58,7 @@ export function Entrar() {
           />
         </label>
         <ErroAviso erro={erro} />
-        <button className="acao" disabled={validando || !chave.trim()}>
+        <button className="acao primario" disabled={validando || !chave.trim()}>
           {validando ? "Conferindo…" : "Entrar"}
         </button>
       </form>
