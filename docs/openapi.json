@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Agenda Inteligente — agenda-service",
-    "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <token>` — `agk_…` (credencial de agente, revogável),\n`ats_…` (sessão de atendimento, cunhada pelo canal) ou JWT do Supabase\n(humanos/UI). `X-Agent-Key` é o caminho legado da UI.\n\n**Autenticar não concede tudo.** Cada rota declara o escopo que exige, e é o\nmesmo cobrado em execução:\n\n| Escopo | Cobre |\n|---|---|\n| `agenda:read` | catálogo, horários livres, grade, o **próprio** compromisso |\n| `agenda:write` | agendar, remarcar, confirmar, fila — para **um** cliente |\n| `agenda:cancel` | cancelar um compromisso |\n| `agenda:operacao` | o dia inteiro, todos os compromissos, a fila completa, faltas |\n| `agenda:admin` | serviços, recursos, grade e bloqueios |\n| `canal:admin` | driver, credenciais do canal, templates, opt-outs |\n| `credenciais:admin` | emitir e revogar credenciais — nunca num preset de agente |\n\nUma credencial de **atendimento** (o bot do canal) carrega ainda um\n`titular`: ela alcança só o compromisso do cliente daquela conversa, e\ncompromisso de terceiro responde 404. Consulte `GET /credenciais/eu` para\ndescobrir a própria autoridade antes de tentar uma ação.\n",
+    "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <token>` — `agk_…` (credencial de agente, revogável),\n`ats_…` (sessão de atendimento, cunhada pelo canal) ou JWT do Supabase\n(humanos/UI). `X-Agent-Key` carrega o mesmo `agk_…` num header próprio, que é\ncomo a UI fala hoje; sai quando o Supabase Auth entrar. Toda credencial vive\nem `agent_credentials`: chave estática em variável de ambiente não autentica.\n\n**Autenticar não concede tudo.** Cada rota declara o escopo que exige, e é o\nmesmo cobrado em execução:\n\n| Escopo | Cobre |\n|---|---|\n| `agenda:read` | catálogo, horários livres, grade, o **próprio** compromisso |\n| `agenda:write` | agendar, remarcar, confirmar, fila — para **um** cliente |\n| `agenda:cancel` | cancelar um compromisso |\n| `agenda:operacao` | o dia inteiro, todos os compromissos, a fila completa, faltas |\n| `agenda:admin` | serviços, recursos, grade e bloqueios |\n| `canal:admin` | driver, credenciais do canal, templates, opt-outs |\n| `credenciais:admin` | emitir e revogar credenciais — nunca num preset de agente |\n\nUma credencial de **atendimento** (o bot do canal) carrega ainda um\n`titular`: ela alcança só o compromisso do cliente daquela conversa, e\ncompromisso de terceiro responde 404. Consulte `GET /credenciais/eu` para\ndescobrir a própria autoridade antes de tentar uma ação.\n",
     "version": "0.4.0"
   },
   "servers": [
@@ -112,7 +112,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -236,7 +236,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -386,7 +386,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -512,7 +512,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -649,7 +649,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -752,7 +752,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -881,7 +881,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1007,7 +1007,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1133,7 +1133,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1283,7 +1283,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1411,7 +1411,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1570,7 +1570,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1717,7 +1717,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1824,7 +1824,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -1942,7 +1942,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2045,7 +2045,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2273,7 +2273,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2420,7 +2420,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2644,7 +2644,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2771,7 +2771,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -2984,7 +2984,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3157,7 +3157,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3306,7 +3306,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3436,7 +3436,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3564,7 +3564,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3674,7 +3674,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3801,7 +3801,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -3991,7 +3991,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4162,7 +4162,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4353,7 +4353,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4481,7 +4481,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4619,7 +4619,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4791,7 +4791,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -4915,7 +4915,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5052,7 +5052,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5197,7 +5197,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5347,7 +5347,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5472,7 +5472,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5591,7 +5591,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5716,7 +5716,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5835,7 +5835,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -5931,7 +5931,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -6034,7 +6034,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -6162,7 +6162,7 @@
                     "value": {
                       "code": "NAO_AUTENTICADO",
                       "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
                       "retryable": false
                     }
                   },
@@ -8515,7 +8515,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Agent-Key",
-        "description": "Chave estática de agente (caminho legado da UI — resolve em `agent_credentials` primeiro). Prefira `Authorization: Bearer agk_…`, que é revogável e tem escopos próprios. Ações irreversíveis pedem confirmação humana."
+        "description": "O mesmo token `agk_…` do bearer, num header próprio — é como a UI fala hoje, e resolve em `agent_credentials` do mesmo jeito. Prefira `Authorization: Bearer agk_…` em integrações novas. Ações irreversíveis pedem confirmação humana."
       }
     }
   },

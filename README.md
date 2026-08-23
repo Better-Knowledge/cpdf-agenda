@@ -131,6 +131,53 @@ com um role **não-superuser** (superuser ignora RLS — testar com ele seria
 teatro). Sem Postgres disponível, os testes de integração são pulados e os de
 unidade rodam normalmente.
 
+A primeira credencial de uma organização nasce no servidor — uma rota capaz de
+emitir credencial administrativa seria um backdoor permanente:
+
+```bash
+make credencial ORG=<uuid> NOME="Painel do prestador" PAPEL=administrativo
+```
+
+Daí em diante a gestão é pela tela de Integrações (T-11). Os alvos `make`
+assumem `DATABASE_URL` no ambiente; no VPS o mesmo comando roda dentro do
+contêiner (`docker compose exec agenda-service uv run python -m app.admin_cli …`).
+
+## Atualizando um protótipo já no ar
+
+Esta versão fecha os dois caminhos de autenticação legados, e a ordem importa —
+fora dela, o bot do WhatsApp para de responder.
+
+1. **Migre as chaves antigas** (antes de tirá-las do `.env`). O valor é
+   preservado, então ninguém é deslogado do painel:
+
+   ```bash
+   docker compose exec agenda-service uv run python -m app.admin_cli importar-env
+   ```
+
+2. **Gere o segredo da sessão de atendimento** e ponha no `.env`. Ele é
+   compartilhado: o canal cunha o token, a agenda o valida, e valores
+   diferentes fazem toda conversa virar 401.
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(48))"   # SESSAO_ATENDIMENTO_SECRET
+   ```
+
+3. **Informe o domínio do conector MCP** (`MCP_HOSTS_PERMITIDOS`) — sem ele o
+   `agenda-admin-mcp` não sobe, de propósito: com a proteção de DNS rebinding
+   ligada e a lista vazia, ele responderia 421 a tudo, o que pareceria falha
+   de rede.
+
+4. **Suba tudo junto** (`make up`). Agenda, canal e agente precisam virar na
+   mesma janela: é o canal que passa a cunhar o token e o agente que passa a
+   apresentá-lo.
+
+5. **Remova `AGENT_API_KEYS` do `.env`.** A autenticação não a lê mais.
+
+Deu errado no meio? `ATENDIMENTO_ISOLADO=0` devolve o comportamento antigo do
+`X-Service-Key` sem redeploy do código. É alavanca de emergência, não
+configuração: com ela desligada, um único segredo de ambiente volta a valer
+por todos os clientes da organização.
+
 ## Ecossistema
 | Módulo | Repo |
 |---|---|

@@ -15,9 +15,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/agenda"
 
     supabase_jwt_secret: str = ""
-    agent_api_keys: dict[str, str] = {}  # chave estática → org_id (fase 1 do conector)
-    # Credencial service-to-service: o agente/orquestrador chama a agenda com
-    # X-Service-Key + X-Org-Id (a org vem do inbound do canal, não da chave).
+    # AGENT_API_KEYS (chave estática no ambiente → org) foi removida: escopo por
+    # credencial e revogação sem redeploy exigem que a credencial viva no banco.
+    # `app.admin_cli importar-env` migra as chaves antigas preservando o valor,
+    # para que nenhum navegador precise ser deslogado.
+    #
+    # Credencial service-to-service legada. Só vale com ATENDIMENTO_ISOLADO
+    # desligado — é a alavanca de rollback, não um caminho suportado.
     agenda_service_key: str = ""
 
     # RF-19 — segredo do token de sessão de atendimento. COMPARTILHADO com o
@@ -25,10 +29,12 @@ class Settings(BaseSettings):
     # provado). Vazio em produção derruba a emissão: melhor falhar do que
     # assinar com um segredo público.
     sessao_atendimento_secret: str = ""
-    # Virada do isolamento (RF-19). Desligada, `X-Service-Key` ainda resolve
-    # para autoridade total — é como o agente-service antigo fala. Ligada, essa
-    # porta fecha e todo atendimento passa pelo token de sessão.
-    atendimento_isolado: bool = False
+    # Virada do isolamento (RF-19), agora LIGADA por padrão: `X-Service-Key`
+    # não concede mais a organização inteira, e todo atendimento passa pelo
+    # token de sessão que o canal cunha. Desligar é rollback deliberado — e
+    # devolve a um único segredo de ambiente o poder sobre todos os clientes
+    # da organização. Mesmo espírito de `app_env`: o padrão fecha a porta.
+    atendimento_isolado: bool = True
 
     canal_service_url: str = "http://canal-service:8000"
     canal_service_key: str = ""
