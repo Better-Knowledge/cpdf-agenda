@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-04 — Zero double-booking: a regra vive no banco.
 
 10 requisições simultâneas para o mesmo slot → 1 sucesso e 9 recusas

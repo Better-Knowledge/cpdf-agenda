@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Telegram entra como driver do canal.
 
 A regra "driver é configuração" vive no banco: a constraint enumera os

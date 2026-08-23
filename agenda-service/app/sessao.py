@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Engine, sessão e o contexto de RLS — sem depender de autenticação.
 
 Este módulo existe separado de `db.py` por um motivo concreto: `auth.py`

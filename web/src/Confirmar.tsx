@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { useEffect, useState } from "react";
 
 /** Ação destrutiva pede confirmação (§12.3): o primeiro clique arma o botão,

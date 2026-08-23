@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """T-05: a tela de grade lista regras e bloqueios pela API pública."""
 
 from .conftest import integracao

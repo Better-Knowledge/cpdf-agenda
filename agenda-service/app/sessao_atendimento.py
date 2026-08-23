@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Token de sessão de atendimento (RF-19) — a prova de que o agente fala por UM cliente.
 
 **O problema que ele resolve.** O agente do canal precisa agir em nome do

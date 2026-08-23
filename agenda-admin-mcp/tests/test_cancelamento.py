@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Cancelar é irreversível — e o agente não confirma sozinho (`00` §5.7).
 
 O horário volta para a grade na hora e a fila de espera é avisada em seguida:

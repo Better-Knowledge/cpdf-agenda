@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-12 — conectar e desconectar o Google Calendar.
 
 O OAuth acontece no navegador do prestador, e é isso que molda estas rotas:

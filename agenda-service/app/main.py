@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """agenda-service — Agenda Inteligente (módulo 02 do AS/IA Avançado).
 
 API-first: este OpenAPI é o contrato que a UI, o link público e o

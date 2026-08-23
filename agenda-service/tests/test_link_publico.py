@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-13 — o link público de auto-agendamento.
 
 A propriedade que estes testes protegem não é "dá para agendar clicando" —

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Endereço do cliente numa forma canônica só (RF-19).
 
 Antes do isolamento por titular, a forma de `cliente_telefone` era cosmética:

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AgendamentoPublico, ApiError, PaginaPublica, Slot, publico } from "../api";

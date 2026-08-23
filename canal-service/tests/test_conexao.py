@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Etapa 6 — ciclo de vida da instância: criar, apontar webhook, QR, estado.
 
 A parte de driver roda sem banco (transporte HTTP falso); as rotas do canal

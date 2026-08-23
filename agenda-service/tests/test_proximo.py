@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Próximo compromisso por telefone — e o que sobrou da credencial de serviço.
 
 `X-Service-Key` foi como o agente falou com a agenda até o RF-19: uma chave de

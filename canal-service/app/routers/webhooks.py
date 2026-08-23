@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Inbound: webhook por driver → normalização → opt-out por regra → orquestrador.
 
 Padrão de webhook do programa (PRD §9): responder 2xx rápido, idempotência

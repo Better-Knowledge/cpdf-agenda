@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """T-10 — as métricas do §4.
 
 O que estes testes protegem é menos a aritmética e mais a honestidade dos

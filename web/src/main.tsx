@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import "@fontsource/fira-sans/500.css";
 import "@fontsource/fira-sans/600.css";
 import "@fontsource/inter/400.css";

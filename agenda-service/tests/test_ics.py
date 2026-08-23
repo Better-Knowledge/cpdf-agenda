@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-11 — o feed .ics e o que ele deliberadamente não conta.
 
 O token na URL é o único segredo: não há autenticação nesta rota. Os testes

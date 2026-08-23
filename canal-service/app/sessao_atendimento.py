@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Cunhagem do token de sessão de atendimento (RF-19).
 
 **Gêmeo de `agenda-service/app/sessao_atendimento.py`** — aquele é o

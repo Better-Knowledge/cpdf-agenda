@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """T-10 — os números do §4, calculados onde os dados estão.
 
 A tela poderia somar isto no navegador varrendo `GET /appointments` dia a

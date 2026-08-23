@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O catálogo de tools é interface: o modelo escolhe pela descrição.
 
 Estes testes tratam nome e texto como contrato, não como comentário. Uma tool

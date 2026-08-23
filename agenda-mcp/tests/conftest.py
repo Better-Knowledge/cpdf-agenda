@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Uma agenda de mentira, servida em memória.
 
 O que estes testes cobrem é o **conector**: as rotas que ele monta, os headers

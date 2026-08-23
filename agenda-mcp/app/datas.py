@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Linguagem natural de datas — e o que ela se recusa a adivinhar.
 
 O cliente escreve "quinta de tarde", "semana que vem", "dia 12". O agente

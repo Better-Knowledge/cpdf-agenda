@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { sessao } from "./api";
 import { ToastProvider } from "./Toast";

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """T-09 — canal de mensageria na UI, por procuração.
 
 O canal-service nunca é exposto ao navegador (PRD §11): a UI fala com o

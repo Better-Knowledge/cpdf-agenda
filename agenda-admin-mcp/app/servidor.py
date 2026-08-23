@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """`agenda-admin-mcp` — a equipe operando a plataforma por conversa (PRD §14.5).
 
 **Por que um servidor separado do `agenda-mcp` de atendimento.** Com um só, a

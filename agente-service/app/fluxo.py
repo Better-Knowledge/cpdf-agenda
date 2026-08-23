@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O que o agente faz com cada intenção (IA-04).
 
 Gradiente de risco do programa, aplicado literalmente:

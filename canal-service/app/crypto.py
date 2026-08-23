@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Credenciais de driver cifradas na aplicação (write-only na API).
 
 Nunca em log, nunca em resposta — a UI (T-09) só vê status da conexão.

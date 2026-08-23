@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """ASGI do conector: Streamable HTTP em `/mcp`.
 
 O transporte HTTP+SSE antigo está depreciado (`00` §5) e não é servido aqui.

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Linguagem natural de datas — e as recusas, que são metade do valor.
 
 O risco do PRD §16 é "agente interpreta data errada" com probabilidade

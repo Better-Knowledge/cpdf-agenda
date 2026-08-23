@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Limite por IP para as rotas públicas (RF-13).
 
 Janela deslizante em memória do processo. É o suficiente para o que ela

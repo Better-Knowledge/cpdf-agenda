@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O catálogo é interface: o que o modelo lê antes de escolher.
 
 Estes testes tratam as descrições como contrato. Uma tool sem escopo

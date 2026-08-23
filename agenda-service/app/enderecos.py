@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Endereço do cliente no canal — uma forma canônica só.
 
 O invariante do programa diz que `cliente_telefone` significa "endereço neste

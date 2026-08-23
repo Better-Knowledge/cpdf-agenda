@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O canal só aceita chamadas dos serviços do programa (PRD §11):
 credencial service-to-service + org explícita. Nunca do navegador.
 Webhooks inbound são a exceção — autenticados pelo segredo do driver.

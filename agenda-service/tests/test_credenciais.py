@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Fundação de papéis e escopos.
 
 A propriedade central desta etapa é chata e essencial: a autoridade agora vem

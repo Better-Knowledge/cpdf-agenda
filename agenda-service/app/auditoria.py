@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """`00` §5.8 — toda ação de agente é rastreável.
 
 **Por que aqui e não no conector MCP.** Seria mais fácil auditar dentro do

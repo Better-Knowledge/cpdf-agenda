@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Integrações da etapa 8: entrega de eventos por consumidor e Calendly.
 
 Duas tabelas novas.

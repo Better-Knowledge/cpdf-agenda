@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Padrão propor → confirmar (`00` §5.7) para ações irreversíveis.
 
 Cancelamento disparado por agente exige confirmação humana. Sem elicitation

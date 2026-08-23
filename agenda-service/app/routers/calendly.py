@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-16 — importar agendamentos do Calendly (opcional, one-way).
 
 Para quem já opera no Calendly e está migrando: o que é marcado lá aparece

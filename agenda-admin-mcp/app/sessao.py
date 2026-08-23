@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Quem está chamando — perguntado à agenda, nunca decidido aqui.
 
 O conector valida a credencial **uma vez por sessão** com `GET /credenciais/eu`

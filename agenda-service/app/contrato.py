@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-17 — o OpenAPI é o contrato executável do módulo.
 
 Aqui vive o que torna o `/docs` auto-suficiente para um agente (ou aluno):

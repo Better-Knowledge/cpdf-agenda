@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Tempo é invariante do módulo: UTC no banco, America/Sao_Paulo na borda,
 datetime naive é proibido. Toda saída de horário: ISO 8601 com offset +
 `label_humano` pronto (o agente fala a data sem reformatar — IA-01).

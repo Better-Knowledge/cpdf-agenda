@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-11 — feed .ics somente-leitura, a opção de calendário sem OAuth.
 
 O segredo é o token na URL: quem o tem lê a agenda daquele recurso, sem

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 // A UI é o segundo cliente da API (PRD §12): toda ação daqui existe antes
 // como rota autenticada — deletar a UI não remove capacidade nenhuma.
 // Fase 1 do conector: chave de acesso (X-Agent-Key) guardada no navegador.

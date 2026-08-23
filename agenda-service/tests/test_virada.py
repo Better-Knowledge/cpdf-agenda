@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """A virada (etapa 6): o que deixou de valer, e o que foi feito para não doer.
 
 Duas portas se fecham aqui. A primeira é `AGENT_API_KEYS` — chave estática no

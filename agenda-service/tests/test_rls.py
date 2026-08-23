@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RLS ativa e testada com dois org_id diferentes (`00` §4.6).
 
 A consulta é feita SEM filtro de org na query — só o GUC muda. Quem

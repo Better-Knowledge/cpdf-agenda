@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O caminho real: cliente MCP → Streamable HTTP → tool → agenda.
 
 Os outros testes chamam as funções direto, com um `Context` de mentira. Este

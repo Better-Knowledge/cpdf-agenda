@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Driver Telegram Bot API — o caminho mais curto para ver o produto rodando.
 
 Por que ele existe no programa: WhatsApp não-oficial exige número dedicado,

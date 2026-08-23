@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-12 — a ponte entre a agenda e o Google Calendar.
 
 Duas direções, com garantias deliberadamente diferentes:

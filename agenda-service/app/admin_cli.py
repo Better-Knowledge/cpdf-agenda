@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Emissão e revogação de credenciais de agente — pela linha de comando.
 
 **Por que não existe endpoint para isto.** Uma rota capaz de emitir credencial

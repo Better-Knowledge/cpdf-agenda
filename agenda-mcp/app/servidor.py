@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """`agenda-mcp` — o atendimento ao cliente final por conversa (PRD §14.1–14.4).
 
 **O conector mais exposto do programa.** É ele que o cliente final aciona,

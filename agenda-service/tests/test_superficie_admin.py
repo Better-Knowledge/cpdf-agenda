@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Etapa 4 — o que a equipe precisa para operar a plataforma por conversa.
 
 Sem estas rotas, um agente administrativo consegue criar mas não corrigir:

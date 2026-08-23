@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-16 — importação one-way do Calendly.
 
 O webhook é público: quem autentica é a assinatura, e é ela também que diz de

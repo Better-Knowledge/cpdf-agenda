@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Os furos que existiam antes da separação de papéis.
 
 Cada teste aqui corresponde a um vazamento real que uma credencial de
