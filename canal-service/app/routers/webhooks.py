@@ -15,12 +15,15 @@ tempestade de retries com conteúdo forjado.
 
 import hmac
 import logging
+import uuid
 
-from fastapi import APIRouter, Request
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Request
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..db import SessionLocal, sessao_org, sessao_worker
 from ..drivers.base import DriverCanal, MensagemInbound
 from ..drivers.registry import obter_driver
@@ -29,6 +32,34 @@ from ..optout import CONFIRMACAO_OPTOUT, e_pedido_de_optout
 
 log = logging.getLogger("canal.inbound")
 router = APIRouter(tags=["webhooks"])
+
+
+def encaminhar_ao_orquestrador(org_id: uuid.UUID, inbound: MensagemInbound) -> None:
+    """Entrega o inbound normalizado ao agente (PRD §9.1) — fora do caminho do
+    2xx ao driver. Falha aqui não derruba o webhook: fica logada; a mensagem já
+    está em channel_messages e o humano vê a conversa mesmo sem agente."""
+    cfg = settings()
+    try:
+        resposta = httpx.post(
+            cfg.orquestrador_url,
+            json={
+                "org_id": str(org_id),
+                "telefone": inbound.telefone,
+                "texto": inbound.texto,
+                "message_id": inbound.message_id,
+                "timestamp": inbound.timestamp.isoformat() if inbound.timestamp else None,
+            },
+            headers={"X-Service-Key": cfg.orquestrador_key},
+            timeout=30,
+        )
+        if resposta.status_code >= 400:
+            log.warning(
+                "orquestrador respondeu %s para inbound de %s",
+                resposta.status_code,
+                inbound.telefone,
+            )
+    except httpx.HTTPError:
+        log.exception("orquestrador inacessível — inbound de %s ficou só registrado", inbound.telefone)
 
 
 def _resolver_config(db: Session, driver: str, instancia: str) -> ChannelConfig | None:
@@ -114,13 +145,12 @@ def _processar(driver_obj: DriverCanal, inbound: MensagemInbound, token: str) ->
             return {"resultado": "optout_registrado"}
 
         db.commit()
-        # Próxima etapa (PRD §9.1): normalizada → orquestrador/agente (IA-04).
         log.info("inbound %s de %s registrado (id %s)", driver_obj.nome, inbound.telefone, gravado)
-        return {"resultado": "registrado", "message_id": gravado}
+        return {"resultado": "registrado", "message_id": gravado, "org_id": config.org_id}
 
 
 def _receber(nome_driver: str):
-    async def endpoint(request: Request) -> dict:
+    async def endpoint(request: Request, background: BackgroundTasks) -> dict:
         token = request.query_params.get("token", "")
         payload = await request.json()
         driver_obj = obter_driver(nome_driver)
@@ -131,11 +161,17 @@ def _receber(nome_driver: str):
         if inbound is None:
             return {"resultado": "evento_ignorado"}
         try:
-            return _processar(driver_obj, inbound, token)
+            resultado = _processar(driver_obj, inbound, token)
         except Exception:
             # 2xx rápido sempre: o driver reenvia depois e a idempotência segura o replay
             log.exception("falha ao processar inbound %s", nome_driver)
             return {"resultado": "erro_interno_logado"}
+        # Registrado → segue ao agente DEPOIS do 2xx ao driver (assíncrono).
+        org_id = resultado.pop("org_id", None)
+        if resultado["resultado"] == "registrado" and org_id and settings().orquestrador_url:
+            resultado["encaminhado"] = True
+            background.add_task(encaminhar_ao_orquestrador, org_id, inbound)
+        return resultado
 
     return endpoint
 

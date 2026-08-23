@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     supabase_jwt_secret: str = ""
     agent_api_keys: dict[str, str] = {}  # chave estática → org_id (fase 1 do conector)
+    # Credencial service-to-service: o agente/orquestrador chama a agenda com
+    # X-Service-Key + X-Org-Id (a org vem do inbound do canal, não da chave).
+    agenda_service_key: str = ""
 
     canal_service_url: str = "http://canal-service:8000"
     canal_service_key: str = ""

@@ -303,6 +303,42 @@ def listar(
 
 
 @router.get(
+    "/appointments/proximo",
+    response_model=AppointmentOut,
+    summary="Próximo compromisso futuro de um telefone",
+    description=(
+        "O ponto de partida do agente quando o cliente escreve: acha o compromisso "
+        "('agendado' ou 'confirmado') mais próximo no futuro para este telefone. "
+        "404 se não houver — nesse caso, ofereça um novo agendamento."
+    ),
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:read"),
+)
+def proximo(
+    telefone: str = Query(min_length=8, description="Telefone E.164, ex.: +5511998765432"),
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+):
+    exigir_escopo(cred, "agenda:read")
+    from sqlalchemy import text as sql_text
+
+    ap = db.scalars(
+        select(Appointment)
+        .where(
+            Appointment.org_id == cred.org_id,
+            Appointment.cliente_telefone == telefone,
+            Appointment.status.in_(("agendado", "confirmado")),
+            sql_text("lower(periodo) > now()"),
+        )
+        .order_by(Appointment.periodo)
+        .limit(1)
+    ).first()
+    if ap is None:
+        raise NaoEncontrado("Compromisso futuro do telefone", telefone)
+    return _out(ap)
+
+
+@router.get(
     "/agenda/day",
     response_model=AgendaDiaOut,
     summary="Agenda do dia, narrada para o agente",

@@ -39,6 +39,18 @@ def _nao_autenticado(motivo: str) -> ApiError:
 def credencial_atual(request: Request) -> Credencial:
     cfg = settings()
 
+    # Service-to-service (agente/orquestrador): a chave autentica o SERVIÇO e a
+    # org vem explícita no header — o inbound do canal já identifica a org.
+    # ator="agente": ações irreversíveis seguem exigindo confirmação humana.
+    service_key = request.headers.get("X-Service-Key")
+    if service_key:
+        if not cfg.agenda_service_key or service_key != cfg.agenda_service_key:
+            raise _nao_autenticado("X-Service-Key desconhecida")
+        org = request.headers.get("X-Org-Id")
+        if not org:
+            raise _nao_autenticado("X-Service-Key sem X-Org-Id")
+        return Credencial(org_id=UUID(org), ator="agente")
+
     agent_key = request.headers.get("X-Agent-Key")
     if agent_key:
         org = cfg.agent_api_keys.get(agent_key)
