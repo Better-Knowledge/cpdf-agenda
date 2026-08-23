@@ -21,6 +21,12 @@ lint:
 	cd agenda-service && uv run ruff check app tests
 	cd canal-service && uv run ruff check app tests
 
+web-dev:           ## UI em modo dev (proxy para a API local)
+	cd web && npm install && npm run dev
+
+web-build:
+	cd web && npm install && npm run build
+
 up:                ## produção no VPS
 	docker compose up -d --build
 

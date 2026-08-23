@@ -21,6 +21,19 @@ services:
 
   # canal-service permanece só na rede interna — sem porta, sem Traefik.
 
+  web:
+    networks: [interna, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-agenda-ui.entrypoints=websecure"
+      # PathPrefix é prefixo de string cru: /appointments também começa com
+      # /app — por isso o casamento exige /app exato ou /app/…
+      - "traefik.http.routers.cpdf-agenda-ui.rule=Host(`cpdf-agenda.better-knowledge.com`) && (Path(`/app`) || PathPrefix(`/app/`))"
+      - "traefik.http.routers.cpdf-agenda-ui.service=cpdf-agenda-ui"
+      - "traefik.http.routers.cpdf-agenda-ui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-agenda-ui.loadbalancer.server.port=80"
+      - "traefik.docker.network=web"
+
 networks:
   web:
     external: true

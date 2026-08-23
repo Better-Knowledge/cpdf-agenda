@@ -17,6 +17,11 @@ services:
     restart: unless-stopped
     networks: [interna]
 
+  web:
+    build: ./web
+    restart: unless-stopped
+    networks: [interna]
+
   caddy:
     image: caddy:2
     ports: ["80:80", "443:443"]
