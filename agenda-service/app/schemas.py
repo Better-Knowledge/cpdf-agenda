@@ -236,7 +236,13 @@ class AppointmentIn(BaseModel):
     service_id: UUID
     inicio: datetime = Field(description="Um inicio devolvido por GET /slots (ISO 8601 com offset)")
     cliente_nome: str = Field(min_length=1)
-    cliente_telefone: str = Field(min_length=8)
+    cliente_telefone: str = Field(
+        min_length=3,
+        description=(
+            "Endereço do cliente no canal: E.164 no WhatsApp (+5511998765432) ou "
+            "tg:<chat_id> no Telegram. É por ele que os lembretes saem."
+        ),
+    )
     resource_id: UUID | None = None  # sem informar: primeiro recurso livre do serviço
     origem: str = Field(default="agente", description="agente | cliente | humano | calendly")
     observacoes: str | None = None
@@ -317,7 +323,9 @@ class RecurrenceIn(BaseModel):
     service_id: UUID
     inicio: datetime
     cliente_nome: str = Field(min_length=1)
-    cliente_telefone: str = Field(min_length=8)
+    cliente_telefone: str = Field(
+        min_length=3, description="E.164 no WhatsApp ou tg:<chat_id> no Telegram"
+    )
     frequencia: str = Field(description="semanal ou quinzenal")
     ocorrencias: int | None = Field(default=None, ge=2, le=52)
     fim_em: date | None = None
@@ -453,25 +461,48 @@ class CanalConfigIn(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "driver": "evolution",
-                    "numero": "+5511900000000",
-                    "instancia": "minha-org",
-                    "credenciais": {"server_url": "http://evolution_api:8080", "apikey": "…"},
-                    "confirmo_numero_dedicado": True,
-                }
+                    "summary": "Telegram (o mais simples de testar)",
+                    "value": {
+                        "driver": "telegram",
+                        "numero": "@minha_agenda_bot",
+                        "instancia": "agenda-da-aula",
+                        "credenciais": {"bot_token": "123456789:AAE…"},
+                    },
+                },
+                {
+                    "summary": "WhatsApp via Evolution (self-host)",
+                    "value": {
+                        "driver": "evolution",
+                        "numero": "+5511900000000",
+                        "instancia": "minha-org",
+                        "credenciais": {
+                            "server_url": "http://evolution_api:8080",
+                            "apikey": "…",
+                        },
+                        "confirmo_numero_dedicado": True,
+                    },
+                },
             ]
         }
     )
 
-    driver: str = Field(description="evolution | zapi | meta — trocar é só configuração")
-    numero: str = Field(min_length=8, description="Número DEDICADO da organização, E.164")
+    driver: str = Field(
+        description="telegram | evolution | zapi | meta — trocar é só configuração"
+    )
+    numero: str = Field(
+        min_length=3,
+        description="WhatsApp: número DEDICADO em E.164. Telegram: @usuario do bot",
+    )
     instancia: str = Field(min_length=1, description="Identificador da instância no driver")
     credenciais: dict[str, str] = Field(
         description="Write-only: cifradas no canal, nunca voltam em resposta ou log"
     )
     confirmo_numero_dedicado: bool = Field(
         default=False,
-        description="O produto recusa número pessoal — declare que o número é dedicado",
+        description=(
+            "O produto recusa número pessoal — declare que o número é dedicado. "
+            "Não se aplica ao Telegram: um bot já é identidade separada"
+        ),
     )
 
 
@@ -528,7 +559,7 @@ class CanalTemplateOut(BaseModel):
 
 
 class CanalOptoutOut(BaseModel):
-    telefone: str
+    telefone: str = Field(description="Endereço no canal: E.164 ou tg:<chat_id>")
     origem: str | None = Field(default=None, description="palavra_chave | pedido_humano")
     em: str
 

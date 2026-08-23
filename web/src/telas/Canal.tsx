@@ -24,14 +24,34 @@ const CREDENCIAIS_POR_DRIVER: Record<string, { chave: string; rotulo: string; di
     { chave: "token", rotulo: "Token da instância" },
     { chave: "client_token", rotulo: "Client-Token da conta" },
   ],
+  telegram: [{ chave: "bot_token", rotulo: "Token do bot (BotFather)", dica: "123456789:AAE…" }],
   meta: [
     { chave: "phone_number_id", rotulo: "Phone Number ID" },
     { chave: "access_token", rotulo: "Access token" },
   ],
 };
 
+// O que cada driver chama de "número" e de "instância" muda bastante.
+const ROTULOS_POR_DRIVER: Record<
+  string,
+  { numero: string; numeroDica: string; instancia: string; instanciaDica: string }
+> = {
+  telegram: {
+    numero: "Usuário do bot",
+    numeroDica: "@minha_agenda_bot",
+    instancia: "Apelido desta conexão",
+    instanciaDica: "agenda-da-aula",
+  },
+  padrao: {
+    numero: "Número dedicado",
+    numeroDica: "+5511900000000",
+    instancia: "Instância",
+    instanciaDica: "minha-org",
+  },
+};
+
 const FORM_VAZIO = {
-  driver: "evolution",
+  driver: "telegram",
   numero: "",
   instancia: "",
   credenciais: {} as Record<string, string>,
@@ -146,16 +166,20 @@ export function Canal() {
   }
 
   const camposCredencial = CREDENCIAIS_POR_DRIVER[form.driver] ?? [];
+  const rotulos = ROTULOS_POR_DRIVER[form.driver] ?? ROTULOS_POR_DRIVER.padrao;
+  // Bot já é identidade separada: a confirmação existe contra o risco de banir
+  // o número pessoal do aluno num driver não-oficial de WhatsApp.
+  const exigeDedicado = form.driver !== "telegram";
   const mostrarForm = configurando || (config !== null && !config.configurado);
 
   return (
     <>
       <h1>
-        Canal de <em>WhatsApp</em>
+        Canal de <em>conversa</em>
       </h1>
       <p className="subtitulo">
-        Por onde a agenda conversa: lembretes saem daqui e as respostas dos clientes entram por
-        aqui. Trocar de fornecedor (driver) é só reconfigurar — nada muda no resto.
+        Por onde a agenda fala com os clientes: lembretes saem daqui e as respostas entram por
+        aqui. WhatsApp ou Telegram — trocar é só reconfigurar, nada muda no resto do sistema.
       </p>
       <ErroAviso erro={erro} />
 
@@ -165,7 +189,7 @@ export function Canal() {
           <dl>
             <dt>Driver</dt>
             <dd>{config.driver}</dd>
-            <dt>Número</dt>
+            <dt>{config.driver === "telegram" ? "Bot" : "Número"}</dt>
             <dd className="mono">{config.numero}</dd>
             <dt>Instância</dt>
             <dd className="mono">{config.instancia}</dd>
@@ -178,6 +202,14 @@ export function Canal() {
               )}
             </dd>
           </dl>
+
+          {conexao?.estado === "conectado" && config.driver === "telegram" && (
+            <p className="nota-driver">
+              Para testar: abra o Telegram, procure <strong>{config.numero}</strong>, mande{" "}
+              <code>/start</code> e escreva. Cada pessoa que fizer isso vira um cliente com
+              endereço próprio.
+            </p>
+          )}
 
           {conexao?.estado === "aguardando_qr" && conexao.qr_base64 && (
             <div>
@@ -194,7 +226,11 @@ export function Canal() {
           <div className="acoes">
             {conexao?.estado !== "conectado" && (
               <button className="acao primario" disabled={ocupado} onClick={conectar}>
-                {ocupado ? "Conectando…" : "Conectar e gerar QR"}
+                {ocupado
+                  ? "Conectando…"
+                  : config.driver === "telegram"
+                    ? "Ativar o bot"
+                    : "Conectar e gerar QR"}
               </button>
             )}
             <button className="acao" onClick={() => setConfigurando(true)}>
@@ -212,32 +248,42 @@ export function Canal() {
               Driver
               <select
                 value={form.driver}
-                onChange={(e) => setForm({ ...form, driver: e.target.value, credenciais: {} })}
+                onChange={(e) =>
+                  setForm({ ...form, driver: e.target.value, credenciais: {}, dedicado: false })
+                }
               >
-                <option value="evolution">Evolution (self-host)</option>
-                <option value="zapi">Z-API (assinatura)</option>
-                <option value="meta">Meta Cloud API (oficial)</option>
+                <option value="telegram">Telegram (bot)</option>
+                <option value="evolution">WhatsApp — Evolution (self-host)</option>
+                <option value="zapi">WhatsApp — Z-API (assinatura)</option>
+                <option value="meta">WhatsApp — Meta Cloud API (oficial)</option>
               </select>
             </label>
             <label className="campo">
-              Número dedicado
+              {rotulos.numero}
               <input
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                placeholder="+5511900000000"
+                placeholder={rotulos.numeroDica}
                 required
               />
             </label>
             <label className="campo">
-              Instância
+              {rotulos.instancia}
               <input
                 value={form.instancia}
                 onChange={(e) => setForm({ ...form, instancia: e.target.value })}
-                placeholder="minha-org"
+                placeholder={rotulos.instanciaDica}
                 required
               />
             </label>
           </div>
+          {form.driver === "telegram" && (
+            <p className="nota-driver">
+              No Telegram: fale com o <strong>@BotFather</strong>, mande <code>/newbot</code> e cole
+              o token aqui. Quem for testar manda <code>/start</code> para o bot e já pode
+              escrever — sem QR code, sem chip, sem risco de bloqueio.
+            </p>
+          )}
           <div className="formulario-linha">
             {camposCredencial.map((c) => (
               <label key={c.chave} className="campo">
@@ -260,15 +306,17 @@ export function Canal() {
           <p style={{ fontSize: 13, color: "var(--fg-muted)", margin: "10px 0" }}>
             As credenciais são cifradas e não aparecem de novo — nem aqui, nem em log.
           </p>
-          <label style={{ display: "block", fontSize: 14, marginBottom: 12 }}>
-            <input
-              type="checkbox"
-              checked={form.dedicado}
-              onChange={(e) => setForm({ ...form, dedicado: e.target.checked })}
-            />{" "}
-            Confirmo que este número é dedicado à organização — não é o meu número pessoal.
-          </label>
-          <button className="acao primario" disabled={ocupado || !form.dedicado}>
+          {exigeDedicado && (
+            <label style={{ display: "block", fontSize: 14, marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={form.dedicado}
+                onChange={(e) => setForm({ ...form, dedicado: e.target.checked })}
+              />{" "}
+              Confirmo que este número é dedicado à organização — não é o meu número pessoal.
+            </label>
+          )}
+          <button className="acao primario" disabled={ocupado || (exigeDedicado && !form.dedicado)}>
             {ocupado ? "Salvando…" : "Salvar configuração"}
           </button>{" "}
           {config?.configurado && (
@@ -284,8 +332,8 @@ export function Canal() {
           <h2 className="bloco">Webhook do driver</h2>
           <p style={{ fontSize: 14 }}>
             Para driver com painel próprio (Z-API), cole esta URL lá. Ela carrega um segredo
-            rotativo e aparece <strong>só agora</strong> — no Evolution o canal já apontou
-            sozinho.
+            rotativo e aparece <strong>só agora</strong> — no Evolution e no Telegram o canal
+            aponta sozinho ao conectar.
           </p>
           <code className="mono" style={{ fontSize: 13, wordBreak: "break-all" }}>
             {webhookUrl}

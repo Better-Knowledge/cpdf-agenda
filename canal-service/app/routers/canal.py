@@ -29,13 +29,40 @@ router = APIRouter(tags=["canal"])
 
 
 def _webhook_url(config: ChannelConfig) -> str:
-    base = settings().webhook_base_url.rstrip("/")
-    return f"{base}/webhooks/canal/{config.driver}?token={config.webhook_token}"
+    cfg = settings()
+    driver = obter_driver(config.driver)
+    if driver.hospedado_localmente:
+        base = cfg.webhook_base_url.rstrip("/")
+    else:
+        if not cfg.webhook_base_url_publica:
+            raise ApiError(
+                code="WEBHOOK_PUBLICO_AUSENTE",
+                message=f"O driver {config.driver} é serviço de nuvem e precisa alcançar o canal por HTTPS público.",
+                hint=(
+                    "Defina WEBHOOK_BASE_URL_PUBLICA com o domínio que expõe "
+                    "/webhooks/canal/ e reconfigure o canal."
+                ),
+                status_code=409,
+            )
+        base = cfg.webhook_base_url_publica.rstrip("/")
+    # `instancia` na URL porque nem todo driver se identifica no payload: o
+    # update do Telegram não diz de qual bot veio. Não é segredo — quem
+    # autentica é o token.
+    return (
+        f"{base}/webhooks/canal/{config.driver}"
+        f"?token={config.webhook_token}&instancia={config.instancia}"
+    )
 
 
 def _credenciais(config: ChannelConfig) -> dict:
     # A instância da config é a fonte de verdade — sobrepõe a das credenciais.
-    return {**crypto.decifrar(config.credenciais), "instancia": config.instancia}
+    # O webhook_secret vai junto: o Telegram devolve esse segredo no header de
+    # cada update, que é a verificação idiomática de lá.
+    return {
+        **crypto.decifrar(config.credenciais),
+        "instancia": config.instancia,
+        "webhook_secret": config.webhook_token,
+    }
 
 
 def _config(db: Session, org_id) -> ChannelConfig:
@@ -289,7 +316,10 @@ def configurar(
     chamador: Chamador = Depends(chamador_atual),
     db: Session = Depends(get_db),
 ) -> dict:
-    if not dados.confirmo_numero_dedicado:
+    # A regra existe porque driver não-oficial de WhatsApp pode ser banido e
+    # levar junto o número pessoal do aluno. Um bot de Telegram já nasce como
+    # identidade separada — a checagem ali seria burocracia sem risco a evitar.
+    if dados.driver != "telegram" and not dados.confirmo_numero_dedicado:
         raise ApiError(
             code="NUMERO_PESSOAL_RECUSADO",
             message="O canal exige um número de WhatsApp dedicado à organização.",

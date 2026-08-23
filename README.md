@@ -15,9 +15,9 @@ link público, Calendly e o `agenda-mcp`.
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking
   (garantido no banco, `EXCLUDE USING gist`)
-- **`canal-service`** — adapter WhatsApp com drivers Evolution + Z-API
-  (Meta como interface/aula), templates, inbound e opt-out. Nasce aqui e é
-  reutilizado pelos módulos 03 e 04
+- **`canal-service`** — adapter de mensageria com drivers Telegram, Evolution e
+  Z-API (Meta como interface/aula), templates, inbound e opt-out. Nasce aqui e
+  é reutilizado pelos módulos 03 e 04
 - Confirmações e lembretes automáticos via template
 - Espelho no [Gestor de Tarefas](https://github.com/Better-Knowledge/cpdf-gestor-tarefas)
   e feed .ics para Google/Apple Calendar
@@ -37,7 +37,7 @@ Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
 
 ```
 agenda-service/   FastAPI + SQLAlchemy + Alembic — API da agenda (OpenAPI no /docs via Scalar)
-canal-service/    adapter WhatsApp (evolution|zapi implementados; meta = interface/aula)
+canal-service/    adapter de mensageria (telegram|evolution|zapi; meta = interface/aula)
 agente-service/   orquestrador do inbound (IA-04) — classifica a intenção e age pela API
 web/              UI do prestador (Vite + React, servida em /app) — segundo cliente da API
 docs/             PRD, contrato de arquitetura e openapi.json (artefato versionado)
@@ -49,6 +49,22 @@ própria — toda ação passa pela API pública. Telas entregues: T-01 (chave d
 acesso, fase 1), T-02 (agenda do dia), T-03 (detalhe + ações), T-04
 (serviços), T-05 (grade e bloqueios), T-09 (canal: driver, QR code, templates
 e opt-outs). `make web-dev` roda a UI local com proxy para a API.
+
+### Testar em um minuto: Telegram
+
+O caminho mais curto para ver o produto funcionando — sem chip, sem QR code,
+sem risco de bloqueio:
+
+1. No Telegram, fale com o **@BotFather** e mande `/newbot`. Guarde o token.
+2. Na UI, aba **Canal** → driver **Telegram** → cole o token → salvar.
+3. Clique em **Ativar o bot** (o canal registra o webhook sozinho).
+4. Procure o seu bot no Telegram, mande `/start` e escreva.
+
+Requisito de infra: o Telegram é serviço de nuvem e só entrega inbound por
+HTTPS público, então `WEBHOOK_BASE_URL_PUBLICA` precisa apontar para um domínio
+que exponha **apenas** `/webhooks/canal/` (o resto do canal continua fechado —
+ver `docker-compose.override.yml`). Já o Evolution, que roda no mesmo Docker,
+segue conversando pela rede interna.
 
 ### Como o inbound funciona
 

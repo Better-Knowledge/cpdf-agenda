@@ -1,7 +1,7 @@
 # CLAUDE.md — cpdf-agenda
 
 ## O que é este repo
-Agenda Inteligente (`agenda-service`) + canal de WhatsApp (`canal-service`) —
+Agenda Inteligente (`agenda-service`) + canal de mensageria (`canal-service`) —
 módulo 02 do AS/IA Avançado. Agendamento por conversa, lembretes automáticos,
 conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
 
@@ -28,7 +28,10 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   envio ativo consulta `channel_optouts` sempre.
 - **Reagendamento atômico**: novo slot reservado e antigo liberado na mesma
   transação, ou nada muda.
-- Trocar driver do canal (evolution↔zapi) é configuração — a mesma suíte passa nos dois.
+- Trocar driver do canal (telegram↔evolution↔zapi) é configuração — a mesma suíte
+  passa nos três, inclusive num canal que não usa telefone.
+- **Endereço do cliente** é por canal: E.164 no WhatsApp, `tg:<chat_id>` no Telegram.
+  O campo `telefone` significa "endereço neste canal" — nunca assuma número.
 
 ## Convenções do programa
 - Toda tabela: `org_id uuid not null` + RLS `org_id = auth.jwt() ->> 'org_id'`

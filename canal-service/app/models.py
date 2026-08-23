@@ -27,14 +27,16 @@ class ChannelConfig(Base):
 
     __tablename__ = "channel_configs"
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    driver: Mapped[str] = mapped_column(Text)  # evolution|zapi|meta
+    driver: Mapped[str] = mapped_column(Text)  # evolution|zapi|telegram|meta
     credenciais: Mapped[dict] = mapped_column(JSONB)  # cifrado (Fernet); write-only na API
-    numero: Mapped[str] = mapped_column(Text)  # número DEDICADO — nunca o pessoal do aluno
+    numero: Mapped[str] = mapped_column(Text)  # WhatsApp: número DEDICADO; Telegram: @bot
     instancia: Mapped[str] = mapped_column(Text)  # roteia o webhook inbound até a org
     webhook_token: Mapped[str] = mapped_column(Text)  # segredo do webhook (PRD §9) — na URL
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     __table_args__ = (
-        CheckConstraint("driver in ('evolution','zapi','meta')", name="driver_valido"),
+        CheckConstraint(
+            "driver in ('evolution','zapi','telegram','meta')", name="driver_valido"
+        ),
         UniqueConstraint("driver", "instancia", name="instancia_unica_por_driver"),
     )
 
@@ -56,6 +58,7 @@ class ChannelMessage(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     org_id: Mapped[uuid.UUID]
     direcao: Mapped[str] = mapped_column(Text)  # saida|entrada
+    # Endereço do cliente NESTE canal: E.164 no WhatsApp, `tg:<chat_id>` no Telegram
     telefone: Mapped[str] = mapped_column(Text)
     tipo: Mapped[str | None] = mapped_column(Text)  # sessao|template
     template_id: Mapped[uuid.UUID | None]

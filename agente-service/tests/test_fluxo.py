@@ -84,6 +84,29 @@ def test_sem_compromisso_o_agente_oferece_marcar(agenda_falsa):
     assert "marcar" in agenda_falsa.respostas[0]
 
 
+def test_pergunta_de_esclarecimento_se_adapta_a_situacao(agenda_falsa):
+    """Oferecer 'confirmar ou cancelar' a quem não tem horário é conversa de
+    robô — quem chega novo (o caso comum na demo) precisa ouvir 'quer marcar?'."""
+    agenda_falsa.compromisso = None
+    tratar(ORG, TEL, "bom dia, tudo bem?")
+    assert "marcar" in agenda_falsa.respostas[0]
+    assert "cancelar" not in agenda_falsa.respostas[0]
+
+    agenda_falsa.respostas.clear()
+    agenda_falsa.compromisso = COMPROMISSO
+    tratar(ORG, "+5511900001111", "bom dia, tudo bem?")
+    assert "confirmar" in agenda_falsa.respostas[0]
+
+
+def test_endereco_de_telegram_atravessa_o_fluxo(agenda_falsa):
+    """O agente não sabe o que é WhatsApp ou Telegram: para ele, endereço é
+    endereço — é o canal que traduz."""
+    agenda_falsa.compromisso = COMPROMISSO
+    resultado = tratar(ORG, "tg:987654321", "confirmo")
+    assert resultado.acao == "confirmado"
+    assert any("tg%3A987654321" in rota for _, rota in agenda_falsa.chamadas)
+
+
 def test_remarcar_sem_horarios_livres_vai_para_humano(agenda_falsa):
     agenda_falsa.compromisso = COMPROMISSO
     agenda_falsa.slots = []

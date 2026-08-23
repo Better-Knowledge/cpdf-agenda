@@ -19,7 +19,21 @@ services:
       - "traefik.http.services.cpdf-agenda.loadbalancer.server.port=8000"
       - "traefik.docker.network=web"
 
-  # canal-service permanece só na rede interna — sem porta, sem Traefik.
+  # O canal segue fechado, com UMA exceção: drivers de nuvem (Telegram, Z-API)
+  # só entregam inbound por HTTPS público. Exposto apenas /webhooks/canal/ —
+  # /canal/* (envio, config, credenciais) continua inalcançável de fora.
+  # O que protege esse caminho: token comparado com compare_digest antes de
+  # qualquer efeito, e payload sem token válido responde 200 sem processar.
+  canal-service:
+    networks: [interna, evolution, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-canal-webhook.entrypoints=websecure"
+      - "traefik.http.routers.cpdf-canal-webhook.rule=Host(`cpdf-agenda.better-knowledge.com`) && PathPrefix(`/webhooks/canal/`)"
+      - "traefik.http.routers.cpdf-canal-webhook.service=cpdf-canal-webhook"
+      - "traefik.http.routers.cpdf-canal-webhook.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-canal-webhook.loadbalancer.server.port=8000"
+      - "traefik.docker.network=web"
 
   web:
     networks: [interna, web]

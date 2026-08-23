@@ -21,10 +21,12 @@ class Settings(BaseSettings):
     # Janela de sessão do WhatsApp: inbound do cliente abre 24h de resposta livre
     sessao_horas: int = 24
 
-    # Base da URL de webhook que o DRIVER usa para alcançar o canal. Para o
-    # Evolution self-host é o endereço interno do Docker; um driver de nuvem
-    # exigiria expor /webhooks/canal/* publicamente (etapa da demo Z-API).
+    # Base da URL de webhook que o DRIVER usa para alcançar o canal.
+    # Driver self-host (Evolution) chama pela rede interna do Docker...
     webhook_base_url: str = "http://canal-service:8000"
+    # ...driver de nuvem (Telegram, Z-API) precisa de HTTPS público. Só o
+    # caminho /webhooks/canal/ é exposto — o resto do canal continua fechado.
+    webhook_base_url_publica: str = ""
 
     # Para onde o inbound normalizado segue (PRD §9.1): o agente/orquestrador.
     # Vazio = só registra (comportamento anterior). O canal não pensa — entrega.

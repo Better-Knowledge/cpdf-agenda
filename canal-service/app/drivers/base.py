@@ -42,6 +42,10 @@ class EstadoConexao:
 class DriverCanal(ABC):
     nome: str
     suporta_texto_livre_ativo: bool
+    # De onde o driver chama nosso webhook. Self-host no mesmo Docker alcança a
+    # rede interna; serviço de nuvem (Telegram, Z-API, Meta) precisa da URL
+    # pública. Determina qual base o canal registra no driver.
+    hospedado_localmente: bool = False
 
     def __init__(self, http: httpx.Client | None = None):
         self.http = http or httpx.Client(timeout=15)

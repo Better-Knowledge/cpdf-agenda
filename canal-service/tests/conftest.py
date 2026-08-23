@@ -14,6 +14,8 @@ TEST_URL = f"postgresql+psycopg://canal_app:canal_app@{_HOSTPORT}/canal_test"
 os.environ["DATABASE_URL"] = TEST_URL
 os.environ["APP_ENV"] = "dev"
 os.environ.setdefault("CANAL_CRYPTO_KEY", Fernet.generate_key().decode())
+# Drivers de nuvem (telegram) exigem base pública para registrar o webhook
+os.environ.setdefault("WEBHOOK_BASE_URL_PUBLICA", "https://canal.exemplo.test")
 
 
 def _garantir_banco() -> bool:
@@ -84,8 +86,21 @@ class TransporteFake:
             self.requisicoes.append(request)
             # ids únicos, como nos drivers reais — (driver, driver_message_id) é unique
             serial = f"{uuid.uuid4().hex[:12]}"
-            if "sendText" in str(request.url):  # evolution
+            url = str(request.url)
+            if "sendText" in url:  # evolution
                 return httpx.Response(201, json={"key": {"id": f"EVO-{serial}"}})
+            if "api.telegram.org" in url:
+                if url.endswith("/getMe"):
+                    return httpx.Response(200, json={"ok": True, "result": {"username": "bot_teste"}})
+                if url.endswith("/setWebhook"):
+                    return httpx.Response(200, json={"ok": True, "result": True})
+                if url.endswith("/getWebhookInfo"):
+                    return httpx.Response(
+                        200, json={"ok": True, "result": {"url": "https://exemplo/webhooks"}}
+                    )
+                return httpx.Response(  # sendMessage
+                    200, json={"ok": True, "result": {"message_id": int(serial[:6], 16)}}
+                )
             return httpx.Response(200, json={"messageId": f"ZAPI-{serial}"})  # zapi
 
         return httpx.Client(transport=httpx.MockTransport(responder))
@@ -122,14 +137,16 @@ def canal_configurado(client, transporte, instancia):
     credenciais = {
         "evolution": {"server_url": "http://evolution.local", "instancia": instancia, "apikey": "k"},
         "zapi": {"instancia": instancia, "token": "t", "client_token": "ct"},
+        "telegram": {"bot_token": "123456:ABC-token-de-teste"},
     }
+    numeros = {"telegram": "@bot_teste"}
 
     def configurar(driver: str = "evolution"):
         resposta = client.post(
             "/canal/config",
             json={
                 "driver": driver,
-                "numero": "+5511900000000",
+                "numero": numeros.get(driver, "+5511900000000"),
                 "instancia": instancia,
                 "credenciais": credenciais[driver],
                 "confirmo_numero_dedicado": True,

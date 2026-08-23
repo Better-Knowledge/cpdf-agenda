@@ -89,11 +89,12 @@ def configurar(dados: CanalConfigIn, cred: Credencial = Depends(credencial_atual
 @router.post(
     "/canal/conectar",
     response_model=CanalConexaoOut,
-    summary="Conecta a instância do WhatsApp e devolve o QR code",
+    summary="Conecta o canal (QR no WhatsApp, ativação do bot no Telegram)",
     description=(
-        "Garante a instância no servidor do driver, aponta o webhook do inbound para o "
-        "canal e devolve o QR (data URI) para parear em WhatsApp > Aparelhos conectados. "
-        "Só drivers self-host (Evolution) — nos demais a conexão é no painel do fornecedor."
+        "Registra o webhook do inbound e deixa o canal pronto para conversar. No "
+        "Evolution devolve o QR (data URI) para parear em WhatsApp > Aparelhos "
+        "conectados; no Telegram já volta `conectado` — bot não pareia. Z-API e Meta "
+        "conectam no painel do fornecedor."
     ),
     responses=respostas("CANAL_NAO_CONFIGURADO", "FALHA_NO_DRIVER", "CANAL_INDISPONIVEL"),
     openapi_extra=operacao("agenda:write"),
