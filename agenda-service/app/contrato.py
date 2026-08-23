@@ -51,7 +51,10 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
         {
             "code": "NAO_AUTENTICADO",
             "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
-            "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+            "hint": (
+                "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` "
+                "(sessão de atendimento) ou o JWT do Supabase."
+            ),
             "retryable": False,
         },
     ),

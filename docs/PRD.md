@@ -410,6 +410,12 @@ administrador ajusta uma a uma.
   aceite do §14.4, agora executável).
 - Credenciais vivem em tabela (§10), com **revogação sem redeploy**. O token
   em claro existe uma única vez, na criação; o banco guarda só o hash.
+- **Chave estática em variável de ambiente não autentica** (`AGENT_API_KEYS`
+  foi removida): sem linha no banco não há escopo por credencial nem revogação
+  — que são as duas razões deste requisito existir. A migração preserva o valor
+  da chave, de modo que nenhum navegador é deslogado, e a credencial migrada
+  mantém a autoridade que já tinha; tirar poder em silêncio deixaria a T-11
+  respondendo 403 sem explicar por quê.
 - **`credenciais:admin` nunca entra em preset de credencial de agente**, e
   **não é concedível por rota** (403 `ESCOPO_NAO_DELEGAVEL`). As duas regras
   respondem à mesma pergunta: um token administrativo comprometido não pode
@@ -1274,7 +1280,7 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 | 6 | **`canal-service`**: drivers Telegram + Evolution + Z-API, templates, inbound, opt-out |
 | 7 | Job de lembretes via canal + espelho no Gestor de Tarefas + **fila de espera** (RF-14) |
 | 8 | **Google Calendar: push + busy-read** (RF-12) + feed .ics (RF-11) + **link público** (RF-13) + webhook Calendly (RF-16) |
-| 9 | **Papéis, escopos e credenciais** (RF-18) + **isolamento do atendimento** (RF-19) + superfície administrativa e auditoria + **`agenda-admin-mcp`** (§14.5) — a equipe operando por conversa |
+| 9 | **Papéis, escopos e credenciais** (RF-18) + **isolamento do atendimento** (RF-19) + superfície administrativa e auditoria + **`agenda-admin-mcp`** (§14.5) + a virada (o caminho legado deixa de valer) — a equipe operando por conversa |
 | 10 | **Conector MCP `agenda-mcp`** de atendimento (§14.1–14.4) + linguagem natural de datas + **demo final** |
 
 As **telas (§12) nascem junto com a etapa da sua rota, nunca antes** — é o

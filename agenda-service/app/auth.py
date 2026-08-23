@@ -6,19 +6,21 @@ agente administrativo (o da equipe, via MCP) não têm a mesma autoridade. Até
 aqui tinham — `ESCOPOS_PADRAO` era o default de toda credencial e
 `exigir_escopo` nunca barrava ninguém.
 
-Cinco formas de credencial, todas resolvendo para (org_id, escopos, ator):
+Quatro formas de credencial, todas resolvendo para (org_id, escopos, ator):
 - **Bearer `agk_…`** — credencial de `agent_credentials`, com escopos próprios
   e revogável. É o caminho preferido, e o que o MCP administrativo usa;
 - **Bearer `ats_…`** — token de sessão de atendimento (RF-19): traz um
   `titular` assinado e restringe a credencial ao cliente daquela conversa.
   Cunhado pelo canal-service, nunca aqui;
 - **Bearer JWT do Supabase** — humano/UI. Só o humano recebe `credenciais:admin`;
-- **`X-Agent-Key`** — a UI hoje; resolve no banco primeiro, cai no env (legado);
-- **`X-Service-Key`** e **`X-Org-Id`** (só em dev) — legados service-to-service.
+- **`X-Agent-Key`** — o header que a UI manda, resolvido em `agent_credentials`
+  como qualquer bearer. Some quando o Supabase Auth entrar.
 
-Os caminhos legados ainda resolvem para autoridade total, com aviso de
-depreciação, para não quebrar o protótipo em produção. O aperto vem nas
-etapas seguintes, atrás da flag `atendimento_isolado`.
+Sobram dois caminhos legados, ambos fechados por padrão: `X-Service-Key`, que
+só responde com `atendimento_isolado` desligado (rollback), e `X-Org-Id` cru,
+que só vale em `app_env=dev`. `AGENT_API_KEYS` — chave estática no ambiente —
+**não existe mais**: sem linha no banco não há escopo por credencial nem
+revogação sem redeploy, que são a razão de o RF-18 existir.
 
 OAuth 2.1 (fase 2) fica no roadmap — `00` §5.4.
 """
@@ -101,7 +103,11 @@ def _nao_autenticado(motivo: str) -> ApiError:
     return ApiError(
         code="NAO_AUTENTICADO",
         message=f"Credencial ausente ou inválida: {motivo}",
-        hint="Envie `Authorization: Bearer <token>` (agk_… ou JWT do Supabase).",
+        hint=(
+            "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` "
+            "(sessão de atendimento) ou o JWT do Supabase. Chave estática em "
+            "variável de ambiente não autentica: a credencial vive no banco."
+        ),
         status_code=401,
     )
 
@@ -251,16 +257,17 @@ def _resolver_da_requisicao(request: Request) -> Credencial:
             return _da_sessao_atendimento(token)
         return _do_jwt(token)
 
-    # A UI manda X-Agent-Key. Banco primeiro; o env continua valendo enquanto
-    # a migração não termina.
+    # A UI manda X-Agent-Key. É o MESMO lookup do bearer: o header muda, a
+    # autoridade não. Uma chave que não está em `agent_credentials` não
+    # autentica — nem que esteja no ambiente.
     agent_key = request.headers.get("X-Agent-Key")
     if agent_key:
         if cred := _resolver_credencial(agent_key):
             return cred
-        if org := cfg.agent_api_keys.get(agent_key):
-            log.warning("auth legada: X-Agent-Key de AGENT_API_KEYS — migre para agent_credentials")
-            return Credencial(org_id=UUID(org), escopos=ESCOPOS_LEGADO, ator="agente")
-        raise _nao_autenticado("X-Agent-Key desconhecida")
+        raise _nao_autenticado(
+            "X-Agent-Key desconhecida ou revogada. Chaves de AGENT_API_KEYS não "
+            "valem mais: migre com `python -m app.admin_cli importar-env`."
+        )
 
     service_key = request.headers.get("X-Service-Key")
     if service_key:

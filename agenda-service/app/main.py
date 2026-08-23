@@ -72,7 +72,9 @@ Agendamento operado por conversa: slots, agendamento sem double-booking
 
 `Authorization: Bearer <token>` — `agk_…` (credencial de agente, revogável),
 `ats_…` (sessão de atendimento, cunhada pelo canal) ou JWT do Supabase
-(humanos/UI). `X-Agent-Key` é o caminho legado da UI.
+(humanos/UI). `X-Agent-Key` carrega o mesmo `agk_…` num header próprio, que é
+como a UI fala hoje; sai quando o Supabase Auth entrar. Toda credencial vive
+em `agent_credentials`: chave estática em variável de ambiente não autentica.
 
 **Autenticar não concede tudo.** Cada rota declara o escopo que exige, e é o
 mesmo cobrado em execução:
@@ -195,10 +197,10 @@ def openapi_contrato():
             "in": "header",
             "name": "X-Agent-Key",
             "description": (
-                "Chave estática de agente (caminho legado da UI — resolve em "
-                "`agent_credentials` primeiro). Prefira `Authorization: Bearer agk_…`, "
-                "que é revogável e tem escopos próprios. Ações irreversíveis pedem "
-                "confirmação humana."
+                "O mesmo token `agk_…` do bearer, num header próprio — é como a UI "
+                "fala hoje, e resolve em `agent_credentials` do mesmo jeito. Prefira "
+                "`Authorization: Bearer agk_…` em integrações novas. Ações "
+                "irreversíveis pedem confirmação humana."
             ),
         },
     }

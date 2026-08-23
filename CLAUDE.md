@@ -38,6 +38,9 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   concede tudo. Agente de atendimento (canal) e agente administrativo (MCP) têm
   escopos diferentes, e `exigir_escopo` de fato barra. O escopo declarado no
   OpenAPI é o mesmo cobrado em execução — não deixe divergir.
+  Toda credencial vive em `agent_credentials`: **chave estática em variável de
+  ambiente não autentica** (`AGENT_API_KEYS` foi removida). `X-Agent-Key` é só
+  outro jeito de mandar o mesmo `agk_…`.
 - **`credenciais:admin` nunca entra em preset de credencial de agente** e
   **não é delegável por rota** (`POST /credenciais` recusa com
   `ESCOPO_NAO_DELEGAVEL`): um token que emite tokens sobrevive à própria
