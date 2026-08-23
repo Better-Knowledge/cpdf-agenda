@@ -24,11 +24,17 @@ export function Layout() {
           <NavLink to="/fila" className={aba}>
             Fila de espera
           </NavLink>
+          <NavLink to="/links" className={aba}>
+            Links
+          </NavLink>
+          <NavLink to="/calendarios" className={aba}>
+            Calendários
+          </NavLink>
           <NavLink to="/canal" className={aba}>
             Canal
           </NavLink>
           <NavLink to="/credenciais" className={aba}>
-            Integrações
+            Chaves de acesso
           </NavLink>
         </nav>
         <div className="canto">

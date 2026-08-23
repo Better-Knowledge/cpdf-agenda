@@ -20,6 +20,8 @@ from .jobs import criar_scheduler
 from .routers import (
     appointments,
     availability,
+    booking_links,
+    calendly,
     canal,
     credenciais,
     health,
@@ -152,6 +154,23 @@ TAGS = [
         ),
     },
     {
+        "name": "link público",
+        "description": (
+            "Auto-agendamento por link (RF-13) — a via opcional, para o cliente que "
+            "prefere clicar. A página pública usa o **mesmo** motor de slots e o "
+            "mesmo caminho de criação: sem rota privilegiada, com limite por IP e "
+            "coleta mínima."
+        ),
+    },
+    {
+        "name": "calendly",
+        "description": (
+            "Importação one-way do Calendly (RF-16), **opcional**: sem configurar, "
+            "nada muda. O que é marcado lá aparece aqui e ocupa o horário; a agenda "
+            "nunca escreve no Calendly."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -190,6 +209,8 @@ app.include_router(canal.router)
 app.include_router(credenciais.router)
 app.include_router(ics.router)
 app.include_router(integracoes.router)
+app.include_router(booking_links.router)
+app.include_router(calendly.router)
 
 
 def openapi_contrato():

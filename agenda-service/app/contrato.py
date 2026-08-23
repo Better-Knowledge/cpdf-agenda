@@ -160,6 +160,56 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "MUITAS_REQUISICOES": (
+        429,
+        "Limite de requisições por IP na página pública",
+        {
+            "code": "MUITAS_REQUISICOES",
+            "message": "Muitas requisições deste endereço em pouco tempo.",
+            "hint": "Aguarde 40s e tente de novo.",
+            "retryable": True,
+        },
+    ),
+    "DATA_NO_PASSADO": (
+        400,
+        "O horário escolhido já passou",
+        {
+            "code": "DATA_NO_PASSADO",
+            "message": "O horário escolhido já passou.",
+            "hint": "Recarregue a página e escolha um horário na lista de livres.",
+            "retryable": False,
+        },
+    ),
+    "SLUG_INDISPONIVEL": (
+        409,
+        "O endereço do link já está em uso",
+        {
+            "code": "SLUG_INDISPONIVEL",
+            "message": "Não foi possível reservar um endereço para este link.",
+            "hint": "Envie um `slug` diferente no corpo da chamada.",
+            "retryable": False,
+        },
+    ),
+    "ASSINATURA_INVALIDA": (
+        401,
+        "A assinatura do webhook não confere",
+        {
+            "code": "ASSINATURA_INVALIDA",
+            "message": "A assinatura deste webhook não confere com nenhuma integração ativa.",
+            "hint": "Confira a signing key em PUT /integracoes/calendly e o relógio do servidor.",
+            "retryable": False,
+        },
+    ),
+    "LINK_INATIVO": (
+        409,
+        "O link de auto-agendamento está desativado",
+        {
+            "code": "LINK_INATIVO",
+            "message": "Este link de agendamento está desativado no momento.",
+            "hint": "Fale com o prestador pelo WhatsApp — a conversa continua funcionando.",
+            "retryable": False,
+        },
+    ),
     "PERIODO_INVALIDO": (
         400,
         "Fim antes do início",
@@ -302,6 +352,7 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
 
 _DESCRICAO_STATUS = {
     400: "Pedido malformado",
+    429: "Excesso de requisições — o hint diz quanto esperar",
     401: "Não autenticado",
     403: "Escopo insuficiente",
     404: "Não encontrado nesta organização",

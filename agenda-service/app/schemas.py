@@ -860,3 +860,154 @@ class GoogleDesconectadoOut(BaseModel):
     resource_id: UUID
     desconectado: bool = Field(description="false = já não havia conexão (é idempotente)")
     aviso: str
+
+
+# ── Link público de auto-agendamento (RF-13) ─────────────────────────────────
+
+
+class BookingLinkIn(BaseModel):
+    """A caução é **configuração informativa** nesta fase: a página mostra o
+    valor, e a cobrança via Pix é roadmap (§18). Nasce desligada."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"service_id": "9c1e…", "slug": "corte", "exige_caucao": False}]
+        }
+    )
+    service_id: UUID
+    resource_id: UUID | None = Field(
+        default=None, description="Opcional: link de um profissional específico"
+    )
+    slug: str | None = Field(
+        default=None,
+        max_length=60,
+        description="Pedaço final da URL. Omitido, é derivado do nome do serviço.",
+    )
+    exige_caucao: bool = False
+    valor_caucao: Decimal | None = None
+
+
+class BookingLinkPatch(BaseModel):
+    ativo: bool | None = None
+    exige_caucao: bool | None = None
+    valor_caucao: Decimal | None = None
+
+
+class BookingLinkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    service_id: UUID
+    resource_id: UUID | None = None
+    slug: str
+    url: str = Field(description="Endereço para mandar ao cliente")
+    ativo: bool
+    exige_caucao: bool
+    valor_caucao: Decimal | None = None
+    created_at: datetime
+
+    @field_serializer("valor_caucao")
+    def _dinheiro(self, v: Decimal | None) -> str | None:
+        return None if v is None else f"{v:.2f}"
+
+
+class PaginaPublicaOut(BaseModel):
+    """O que a página pública mostra antes de o cliente escolher horário.
+
+    De propósito, o mínimo: nome e duração do serviço. Nada de recurso, nada
+    de agenda — a página não é lugar de reconstruir a ocupação do prestador.
+    """
+
+    slug: str
+    servico: str
+    duracao_min: int
+    preco: str
+    exige_caucao: bool
+    valor_caucao: str | None = None
+    aviso_caucao: str | None = Field(
+        default=None, description="Texto pronto para a página, quando há caução configurada"
+    )
+
+
+class AgendamentoPublicoIn(BaseModel):
+    """Coleta mínima (LGPD §13): nome e um jeito de avisar. Nada além."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "cliente_nome": "Ana Prado",
+                    "cliente_telefone": "+5511999998888",
+                    "inicio": "2027-03-09T14:00:00-03:00",
+                }
+            ]
+        }
+    )
+    cliente_nome: str = Field(min_length=2, max_length=120)
+    cliente_telefone: str = Field(min_length=8, max_length=40)
+    inicio: datetime
+
+    @field_validator("inicio")
+    @classmethod
+    def _com_fuso(cls, v: datetime) -> datetime:
+        return exigir_aware(v, "inicio")
+
+
+class AgendamentoPublicoOut(BaseModel):
+    """A confirmação devolve o combinado — e nada sobre o resto da agenda."""
+
+    id: UUID
+    servico: str
+    inicio: datetime
+    label_humano: str
+    mensagem: str
+
+
+# ── Calendly (RF-16) ─────────────────────────────────────────────────────────
+
+
+class CalendlyConfigIn(BaseModel):
+    """A chave de assinatura é write-only: entra aqui, some do banco cifrada,
+    e nunca volta numa leitura."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "service_id": "9c1e…",
+                    "resource_id": "6f1e…",
+                    "chave_assinatura": "a-chave-do-webhook-no-Calendly",
+                    "cria_lembretes": False,
+                }
+            ]
+        }
+    )
+    service_id: UUID = Field(description="Serviço com que o agendamento importado entra")
+    resource_id: UUID = Field(description="Recurso que fica ocupado pelo compromisso importado")
+    chave_assinatura: str = Field(
+        min_length=8,
+        description="A signing key que o Calendly mostra ao criar a assinatura do webhook",
+    )
+    cria_lembretes: bool = Field(
+        default=False,
+        description=(
+            "Padrão false: o Calendly já manda os lembretes dele, e dois lembretes "
+            "para o mesmo horário é uma boa forma de irritar o cliente."
+        ),
+    )
+
+
+class CalendlyConfigOut(BaseModel):
+    service_id: UUID
+    resource_id: UUID
+    cria_lembretes: bool
+    ativo: bool
+    webhook_url: str = Field(description="Cadastre esta URL na assinatura do webhook no Calendly")
+    created_at: datetime
+
+
+class CalendlyRecebidoOut(BaseModel):
+    """Resposta do webhook. Sempre 200 quando a assinatura confere — inclusive
+    quando nada é importado: um 4xx faria o Calendly reenviar para sempre."""
+
+    importado: bool
+    motivo: str

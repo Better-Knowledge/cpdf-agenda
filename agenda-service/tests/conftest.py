@@ -73,6 +73,17 @@ def banco_migrado():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _sem_limite_de_taxa():
+    """O limite por IP das rotas públicas (RF-13) é de processo: sem zerar
+    entre testes, um arquivo inteiro compartilharia a mesma janela."""
+    from app import rate_limit
+
+    rate_limit.limpar()
+    yield
+    rate_limit.limpar()
+
+
 @pytest.fixture()
 def org_id() -> uuid.UUID:
     return uuid.uuid4()
