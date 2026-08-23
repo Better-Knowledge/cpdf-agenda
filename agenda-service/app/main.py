@@ -23,6 +23,8 @@ from .routers import (
     canal,
     credenciais,
     health,
+    ics,
+    integracoes,
     recorrencia,
     resources,
     services,
@@ -134,6 +136,22 @@ TAGS = [
         ),
     },
     {
+        "name": "calendário",
+        "description": (
+            "Feed .ics somente-leitura (RF-11) — a opção de calendário sem OAuth. "
+            "O segredo é o token na URL: revogável, e com modo `privado` que mostra "
+            "só 'Ocupado'. É **visão consolidada, não notificação**."
+        ),
+    },
+    {
+        "name": "integrações",
+        "description": (
+            "Google Calendar (RF-12): push de evento em < 60 s e busy-read no motor "
+            "de slots. Falha do Google nunca bloqueia agendamento — o push tem fila "
+            "com retry e o busy-read degrada para o cálculo local."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -170,6 +188,8 @@ app.include_router(recorrencia.router)
 app.include_router(waitlist.router)
 app.include_router(canal.router)
 app.include_router(credenciais.router)
+app.include_router(ics.router)
+app.include_router(integracoes.router)
 
 
 def openapi_contrato():

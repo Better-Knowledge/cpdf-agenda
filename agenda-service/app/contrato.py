@@ -137,6 +137,29 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "OAUTH_ESTADO_INVALIDO": (
+        400,
+        "O state do OAuth não confere",
+        {
+            "code": "OAUTH_ESTADO_INVALIDO",
+            "message": "O state do OAuth é inválido ou expirou.",
+            "hint": "Recomece a conexão pela tela de Integrações — o link vale 10 minutos.",
+            "retryable": False,
+        },
+    ),
+    "GOOGLE_NAO_CONFIGURADO": (
+        409,
+        "Este servidor não tem app OAuth do Google",
+        {
+            "code": "GOOGLE_NAO_CONFIGURADO",
+            "message": "Este servidor não tem app OAuth do Google configurado.",
+            "hint": (
+                "Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no .env do VPS. "
+                "Sem isso, use o feed .ics (POST /ics/tokens), que não exige OAuth."
+            ),
+            "retryable": False,
+        },
+    ),
     "PERIODO_INVALIDO": (
         400,
         "Fim antes do início",
@@ -302,6 +325,32 @@ def respostas(*codes: str) -> dict[int | str, dict[str, Any]]:
     """
     saida: dict[int | str, dict[str, Any]] = {}
     for code in (*_BASE, *codes):
+        status, resumo, exemplo = CATALOGO[code]
+        resposta = saida.setdefault(
+            status,
+            {
+                "model": ErroOut,
+                "description": _DESCRICAO_STATUS[status],
+                "content": {"application/json": {"examples": {}}},
+            },
+        )
+        resposta["content"]["application/json"]["examples"][code] = {
+            "summary": resumo,
+            "value": exemplo,
+        }
+    return saida
+
+
+def respostas_publicas(*codes: str) -> dict[int | str, dict[str, Any]]:
+    """Como `respostas`, mas sem os erros de base — para as rotas sem credencial.
+
+    Três existem: `/health`, o feed `.ics` (o segredo é o token na URL) e o
+    callback do OAuth (quem chama é o navegador redirecionado pelo Google).
+    Documentar 401/403 nelas seria mentir sobre o contrato — mas 422 vale
+    para todas, porque o handler de validação é do app inteiro.
+    """
+    saida: dict[int | str, dict[str, Any]] = {}
+    for code in ("PAYLOAD_INVALIDO", *codes):
         status, resumo, exemplo = CATALOGO[code]
         resposta = saida.setdefault(
             status,

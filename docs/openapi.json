@@ -6248,6 +6248,1037 @@
         },
         "x-escopo-requerido": "credenciais:admin"
       }
+    },
+    "/ics/tokens": {
+      "get": {
+        "tags": [
+          "calendário"
+        ],
+        "summary": "Lista os feeds de calendário da organização",
+        "description": "**Escopo:** `agenda:admin`\n\nAs URLs saem redigidas: o token nelas dá acesso de leitura à agenda sem autenticação. Para reassinar o feed, use POST /ics/tokens/{id}/revelar.",
+        "operationId": "listar_tokens_ics_tokens_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IcsTokenOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Tokens Ics Tokens Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      },
+      "post": {
+        "tags": [
+          "calendário"
+        ],
+        "summary": "Cria um feed de calendário (.ics)",
+        "description": "**Escopo:** `agenda:admin`\n\nDevolve a URL completa para assinar no Google/Apple Calendar. O feed é **visão consolidada, não notificação**: o Google relê calendários assinados em ciclos de horas. Tempo real no Google é papel do push (RF-12); lembrete em tempo real é papel do canal (RF-05).",
+        "operationId": "criar_token_ics_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IcsTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IcsTokenCriadoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
+    "/ics/tokens/{token_id}/revelar": {
+      "post": {
+        "tags": [
+          "calendário"
+        ],
+        "summary": "Revela a URL completa de um feed",
+        "description": "**Escopo:** `agenda:admin`\n\nPara reassinar o calendário em outro dispositivo. Vazou o link? Não revele: revogue e crie outro — a URL antiga para de responder na hora.",
+        "operationId": "revelar_token_ics_tokens__token_id__revelar_post",
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IcsTokenCriadoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
+    "/ics/tokens/{token_id}/revogar": {
+      "post": {
+        "tags": [
+          "calendário"
+        ],
+        "summary": "Revoga um feed de calendário",
+        "description": "**Escopo:** `agenda:admin`\n\nA URL passa a responder 404 imediatamente. Idempotente. O calendário já assinado no Google não some sozinho — o prestador remove a assinatura lá.",
+        "operationId": "revogar_token_ics_tokens__token_id__revogar_post",
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IcsTokenOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
+    "/ics/{token}.ics": {
+      "get": {
+        "tags": [
+          "calendário"
+        ],
+        "summary": "Feed de calendário assinável (público, token na URL)",
+        "description": "Não exige credencial: o segredo é o token. Assine no Google Calendar («Outros calendários» → «Do URL») ou no Apple Calendar. Token revogado responde 404. **Não é canal de notificação** — o Google relê em ciclos de horas.",
+        "operationId": "feed_ics__token__ics_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calendário iCalendar (RFC 5545)",
+            "content": {
+              "text/calendar": {}
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/integracoes/google": {
+      "get": {
+        "tags": [
+          "integrações"
+        ],
+        "summary": "Conexões Google Calendar da organização",
+        "description": "**Escopo:** `agenda:admin`\n\nUma linha por recurso conectado. Tokens são write-only: esta rota mostra status, nunca credencial. `precisa_reconectar` fica true quando o Google passou a recusar os tokens — o push para de sair e o busy-read volta ao cálculo local.",
+        "operationId": "listar_conexoes_integracoes_google_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GoogleConexaoOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Conexoes Integracoes Google Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
+    "/integracoes/google/conectar": {
+      "post": {
+        "tags": [
+          "integrações"
+        ],
+        "summary": "Começa a conexão OAuth com o Google Calendar",
+        "description": "**Escopo:** `agenda:admin`\n\nDevolve a URL de consentimento do Google. Abra no navegador do prestador: ele escolhe a conta, aceita, e volta para a tela de Integrações já conectado. Escopo mínimo — criar/editar os próprios eventos e ler livre/ocupado. O link vale 10 minutos.",
+        "operationId": "conectar_integracoes_google_conectar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleConectarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleConectarOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "GOOGLE_NAO_CONFIGURADO": {
+                    "summary": "Este servidor não tem app OAuth do Google",
+                    "value": {
+                      "code": "GOOGLE_NAO_CONFIGURADO",
+                      "message": "Este servidor não tem app OAuth do Google configurado.",
+                      "hint": "Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no .env do VPS. Sem isso, use o feed .ics (POST /ics/tokens), que não exige OAuth.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
+    },
+    "/integracoes/google/callback": {
+      "get": {
+        "tags": [
+          "integrações"
+        ],
+        "summary": "Retorno do consentimento do Google (público)",
+        "description": "Chamada pelo navegador do prestador, redirecionado pelo Google. Não exige credencial: a autoridade vem do `state` assinado, que diz de qual organização e recurso é a conexão. Termina redirecionando para a tela de Integrações.",
+        "operationId": "callback_integracoes_google_callback_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OAUTH_ESTADO_INVALIDO": {
+                    "summary": "O state do OAuth não confere",
+                    "value": {
+                      "code": "OAUTH_ESTADO_INVALIDO",
+                      "message": "O state do OAuth é inválido ou expirou.",
+                      "hint": "Recomece a conexão pela tela de Integrações — o link vale 10 minutos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/integracoes/google/{resource_id}": {
+      "delete": {
+        "tags": [
+          "integrações"
+        ],
+        "summary": "Desconecta o Google Calendar de um recurso",
+        "description": "**Escopo:** `agenda:admin`\n\nRevoga os tokens no Google e apaga as credenciais daqui (RF-12). Os eventos já criados no calendário **permanecem lá** — apagá-los seria destruir a agenda de alguém a partir de uma desconexão. Idempotente.",
+        "operationId": "desconectar_integracoes_google__resource_id__delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleDesconectadoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:admin"
+      }
     }
   },
   "components": {
@@ -7234,6 +8265,108 @@
         "title": "ErroOut",
         "description": "Todo erro da API tem este formato. O `hint` é escrito para o agente\nagir — quando possível, a saída já vem no payload (ex.: alternativas)."
       },
+      "GoogleConectarIn": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id",
+            "description": "Recurso (profissional/sala) cuja agenda será espelhada"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id"
+        ],
+        "title": "GoogleConectarIn"
+      },
+      "GoogleConectarOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Abra no navegador do prestador. Vale 10 minutos."
+          },
+          "expira_em_segundos": {
+            "type": "integer",
+            "title": "Expira Em Segundos",
+            "default": 600
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "GoogleConectarOut",
+        "description": "A rota devolve a URL; quem navega até ela é o navegador do prestador.\n\nNão é redirect direto porque a chamada é autenticada por header — e header\nnão sobrevive a um redirect iniciado pelo browser."
+      },
+      "GoogleConexaoOut": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "resource_nome": {
+            "type": "string",
+            "title": "Resource Nome"
+          },
+          "calendar_id": {
+            "type": "string",
+            "title": "Calendar Id"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          },
+          "precisa_reconectar": {
+            "type": "boolean",
+            "title": "Precisa Reconectar",
+            "description": "true quando o Google recusou os tokens (revogados lá, ou escopo retirado)"
+          },
+          "conectado_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Conectado Em"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "resource_nome",
+          "calendar_id",
+          "ativo",
+          "precisa_reconectar",
+          "conectado_em"
+        ],
+        "title": "GoogleConexaoOut",
+        "description": "Status da conexão. Os tokens **nunca** aparecem aqui: são write-only."
+      },
+      "GoogleDesconectadoOut": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "desconectado": {
+            "type": "boolean",
+            "title": "Desconectado",
+            "description": "false = já não havia conexão (é idempotente)"
+          },
+          "aviso": {
+            "type": "string",
+            "title": "Aviso"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "desconectado",
+          "aviso"
+        ],
+        "title": "GoogleDesconectadoOut"
+      },
       "GradeSemanaIn": {
         "properties": {
           "janelas": {
@@ -7369,6 +8502,155 @@
           "em"
         ],
         "title": "HistoricoOut"
+      },
+      "IcsTokenCriadoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "modo": {
+            "type": "string",
+            "title": "Modo"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "URL do feed, com o token redigido"
+          },
+          "revogado_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revogado Em"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "url_completa": {
+            "type": "string",
+            "title": "Url Completa",
+            "description": "Assine esta URL no Google/Apple Calendar. Recupere depois em /ics/tokens/{id}/revelar."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "modo",
+          "url",
+          "created_at",
+          "url_completa"
+        ],
+        "title": "IcsTokenCriadoOut"
+      },
+      "IcsTokenIn": {
+        "properties": {
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id",
+            "description": "Recurso do feed. Omitido: todos os recursos da organização."
+          },
+          "modo": {
+            "type": "string",
+            "title": "Modo",
+            "description": "`completo` mostra serviço e cliente no título; `privado` mostra só 'Ocupado' — use quando a URL for parar num calendário compartilhado.",
+            "default": "completo"
+          }
+        },
+        "type": "object",
+        "title": "IcsTokenIn",
+        "description": "O feed é por recurso; sem `resource_id`, cobre a organização inteira.",
+        "examples": [
+          {
+            "modo": "completo",
+            "resource_id": "8b1f…"
+          }
+        ]
+      },
+      "IcsTokenOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "modo": {
+            "type": "string",
+            "title": "Modo"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "URL do feed, com o token redigido"
+          },
+          "revogado_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revogado Em"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "modo",
+          "url",
+          "created_at"
+        ],
+        "title": "IcsTokenOut",
+        "description": "A URL sai **redigida**: quem a obtém lê a agenda inteira do recurso.\n\nO valor completo aparece uma vez na criação e, depois, só em\n`POST /ics/tokens/{id}/revelar` — o mesmo tratamento que a `webhook_url`\ndo canal recebe."
       },
       "JanelaSemana": {
         "properties": {
@@ -8551,6 +9833,14 @@
     {
       "name": "credenciais",
       "description": "Papéis e escopos. Um agente de **atendimento** (canal) alcança só o compromisso do cliente que atende; um agente **administrativo** (via MCP) configura a plataforma. Emitir credencial é operação de CLI, nunca de rota."
+    },
+    {
+      "name": "calendário",
+      "description": "Feed .ics somente-leitura (RF-11) — a opção de calendário sem OAuth. O segredo é o token na URL: revogável, e com modo `privado` que mostra só 'Ocupado'. É **visão consolidada, não notificação**."
+    },
+    {
+      "name": "integrações",
+      "description": "Google Calendar (RF-12): push de evento em < 60 s e busy-read no motor de slots. Falha do Google nunca bloqueia agendamento — o push tem fila com retry e o busy-read degrada para o cálculo local."
     },
     {
       "name": "canal",

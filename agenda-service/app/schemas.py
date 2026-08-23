@@ -770,3 +770,93 @@ class CanalOptoutOut(BaseModel):
 class RemocaoOptoutOut(BaseModel):
     telefone: str
     removido: bool
+
+
+# ── Feed .ics (RF-11) ────────────────────────────────────────────────────────
+
+
+class IcsTokenIn(BaseModel):
+    """O feed é por recurso; sem `resource_id`, cobre a organização inteira."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"resource_id": "8b1f…", "modo": "completo"}],
+        }
+    )
+    resource_id: UUID | None = Field(
+        default=None, description="Recurso do feed. Omitido: todos os recursos da organização."
+    )
+    modo: str = Field(
+        default="completo",
+        description=(
+            "`completo` mostra serviço e cliente no título; `privado` mostra só "
+            "'Ocupado' — use quando a URL for parar num calendário compartilhado."
+        ),
+    )
+
+    @field_validator("modo")
+    @classmethod
+    def _modo_conhecido(cls, v: str) -> str:
+        if v not in ("completo", "privado"):
+            raise ValueError("modo deve ser 'completo' ou 'privado'")
+        return v
+
+
+class IcsTokenOut(BaseModel):
+    """A URL sai **redigida**: quem a obtém lê a agenda inteira do recurso.
+
+    O valor completo aparece uma vez na criação e, depois, só em
+    `POST /ics/tokens/{id}/revelar` — o mesmo tratamento que a `webhook_url`
+    do canal recebe.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    resource_id: UUID | None = None
+    modo: str
+    url: str = Field(description="URL do feed, com o token redigido")
+    revogado_em: datetime | None = None
+    created_at: datetime
+
+
+class IcsTokenCriadoOut(IcsTokenOut):
+    url_completa: str = Field(
+        description="Assine esta URL no Google/Apple Calendar. Recupere depois em /ics/tokens/{id}/revelar."
+    )
+
+
+# ── Google Calendar (RF-12) ──────────────────────────────────────────────────
+
+
+class GoogleConectarIn(BaseModel):
+    resource_id: UUID = Field(description="Recurso (profissional/sala) cuja agenda será espelhada")
+
+
+class GoogleConectarOut(BaseModel):
+    """A rota devolve a URL; quem navega até ela é o navegador do prestador.
+
+    Não é redirect direto porque a chamada é autenticada por header — e header
+    não sobrevive a um redirect iniciado pelo browser.
+    """
+
+    url: str = Field(description="Abra no navegador do prestador. Vale 10 minutos.")
+    expira_em_segundos: int = 600
+
+
+class GoogleConexaoOut(BaseModel):
+    """Status da conexão. Os tokens **nunca** aparecem aqui: são write-only."""
+
+    resource_id: UUID
+    resource_nome: str
+    calendar_id: str
+    ativo: bool
+    precisa_reconectar: bool = Field(
+        description="true quando o Google recusou os tokens (revogados lá, ou escopo retirado)"
+    )
+    conectado_em: datetime
+
+
+class GoogleDesconectadoOut(BaseModel):
+    resource_id: UUID
+    desconectado: bool = Field(description="false = já não havia conexão (é idempotente)")
+    aviso: str
