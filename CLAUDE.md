@@ -47,6 +47,11 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   conector, as ações do agente de atendimento — que não passa por MCP — não
   seriam vistas. Entram escritas e recusas por autoridade; leitura bem-sucedida
   não entra. `args_hash` cobre rota + `Idempotency-Key`, nunca o corpo.
+- **Conector MCP não tem credencial própria** (§14.5): o `agenda-admin-mcp`
+  repassa o bearer de quem chamou e **nunca decide autorização** — quem recusa
+  é a agenda, com o mesmo 403 que daria a um `curl`. Uma chave de serviço no
+  `.env` dele recria o confused deputy que o RF-18 eliminou (teste:
+  `test_o_conector_nao_tem_credencial_propria`).
 - **O titular é cunhado onde o endereço é provado** (RF-19): dentro do
   `canal-service`, depois do `compare_digest` do token de webhook, e viaja
   assinado (`ats_…`, HMAC, 30 min). Nenhum serviço declara por quem age —

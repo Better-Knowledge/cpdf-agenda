@@ -148,3 +148,27 @@ def test_atendimento_nao_administra_o_catalogo(client, catalogo, como_atendiment
         resposta = chamada(rota, json=corpo) if corpo is not None else chamada(rota)
         assert resposta.status_code == 403, f"{metodo.upper()} {rota}"
         assert resposta.json()["code"] == "ESCOPO_INSUFICIENTE"
+
+
+@pytest.fixture()
+def bearer_de_atendimento_sem_sessao(org_id):
+    """Um token `agk_` de papel atendimento — autenticado, mas sem conversa:
+    nenhum titular, porque ninguém provou endereço nenhum."""
+    app.dependency_overrides[credencial_atual] = credencial_falsa(
+        org_id, "atendimento", ator="agente", nome="Bot sem conversa"
+    )
+    yield
+    app.dependency_overrides.pop(credencial_atual, None)
+
+
+def test_a_fila_inteira_exige_operacao(client, catalogo, bearer_de_atendimento_sem_sessao):
+    """A fila é nome, telefone e janela de todo mundo que espera — a mesma
+    classe de dado que já fazia `GET /appointments?date=` exigir operação.
+
+    O isolamento por titular (RF-19) não fechava esta porta sozinho: um bearer
+    de papel `atendimento` sem sessão de conversa não tem titular, e a
+    filtragem por titular simplesmente não se aplicava a ele.
+    """
+    resposta = client.get("/waitlist")
+    assert resposta.status_code == 403
+    assert resposta.json()["code"] == "ESCOPO_INSUFICIENTE"

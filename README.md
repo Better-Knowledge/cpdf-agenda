@@ -11,9 +11,9 @@ agendamento/reagendamento/cancelamento, recorrência, contrato OpenAPI com
 exemplos, UI do prestador, canal ligado a WhatsApp e Telegram reais, agente
 respondendo o inbound, fila de espera, risco de no-show, **autoridade por
 credencial** (RF-18), **isolamento por titular** (RF-19), superfície
-administrativa completa (catálogo, grade declarativa, credenciais) e
-auditoria. Faltam: espelho de tarefas, Google Calendar, .ics, link público,
-Calendly e os conectores MCP.
+administrativa completa (catálogo, grade declarativa, credenciais), auditoria
+e o **conector MCP administrativo**. Faltam: o `agenda-mcp` de atendimento,
+espelho de tarefas, Google Calendar, .ics, link público e Calendly.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking
@@ -28,8 +28,10 @@ Calendly e os conectores MCP.
   cliente final alcança o compromisso daquele cliente; quem opera a plataforma
   usa credencial administrativa. Credenciais em tabela, revogáveis, com escopo
   ajustável uma a uma
-- Conectores MCP: `agenda-mcp` (atendimento) e **`agenda-admin-mcp`** — a
-  equipe criando agendas, grade e consultando apontamentos por conversa
+- **`agenda-admin-mcp`** — a equipe cria agendas, define a grade da semana,
+  bloqueia férias e olha o dia **por conversa**, com a própria credencial. O
+  conector não tem chave própria: repassa a de quem chamou e nunca decide
+  autorização. O `agenda-mcp` de atendimento vem na etapa seguinte
 
 ## Stack (canônica do programa)
 Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
@@ -47,6 +49,7 @@ Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
 agenda-service/   FastAPI + SQLAlchemy + Alembic — API da agenda (OpenAPI no /docs via Scalar)
 canal-service/    adapter de mensageria (telegram|evolution|zapi; meta = interface/aula)
 agente-service/   orquestrador do inbound (IA-04) — classifica a intenção e age pela API
+agenda-admin-mcp/ conector MCP administrativo (Streamable HTTP) — 11 tools, sem credencial própria
 web/              UI do prestador (Vite + React, servida em /app) — segundo cliente da API
 docs/             PRD, contrato de arquitetura e openapi.json (artefato versionado)
 docker-compose.yml + Caddyfile   deploy no VPS (TLS automático)
@@ -55,8 +58,28 @@ docker-compose.yml + Caddyfile   deploy no VPS (TLS automático)
 As telas seguem o princípio do PRD §12: nenhuma chama banco ou tem regra
 própria — toda ação passa pela API pública. Telas entregues: T-01 (chave de
 acesso, fase 1), T-02 (agenda do dia), T-03 (detalhe + ações), T-04
-(serviços), T-05 (grade e bloqueios), T-09 (canal: driver, QR code, templates
-e opt-outs). `make web-dev` roda a UI local com proxy para a API.
+(serviços), T-05 (grade e bloqueios), T-06 (fila de espera), T-09 (canal:
+driver, QR code, templates e opt-outs) e T-11 (integrações: emitir, revogar e
+ver o último uso de cada credencial). `make web-dev` roda a UI local com proxy
+para a API.
+
+
+### O conector administrativo
+
+`agenda-admin-mcp` publica 11 tools em Streamable HTTP
+(`https://mcp.SEU-DOMINIO.com/agenda/admin/mcp`). A credencial é o
+`Authorization: Bearer agk_…` da própria conexão — emitido na tela de
+Integrações ou por `make credencial`. O conector **repassa** esse token e não
+decide nada: quem recusa é a agenda, com o mesmo 403 que daria a um `curl`.
+
+As operações são declarativas de propósito. `agenda_admin_grade_definir`
+recebe a semana inteira e o servidor faz a diferença numa transação — listar,
+remover uma, criar duas e não esquecer nenhuma é exatamente a sequência em que
+um modelo erra. Cancelar passa por confirmação humana (elicitation, com
+`confirmation_token` como fallback) e nunca é decisão do agente.
+
+`make mcp-dev` sobe o conector em `http://127.0.0.1:8100/mcp` para inspecionar
+com o MCP Inspector.
 
 ### Testar em um minuto: Telegram
 

@@ -9,6 +9,18 @@ agenda.SEU-DOMINIO.com {
 	}
 }
 
+# Conectores MCP do programa. O caminho carrega o módulo e o papel, para que
+# os módulos 03 e 04 publiquem os deles no mesmo host sem colidir.
+# O cliente MCP aponta para https://mcp.SEU-DOMINIO.com/agenda/admin/mcp
+mcp.SEU-DOMINIO.com {
+	handle_path /agenda/admin/* {
+		reverse_proxy agenda-admin-mcp:8000
+	}
+	handle {
+		respond "conector desconhecido" 404
+	}
+}
+
 # O canal-service NÃO é exposto ao público — só os webhooks inbound dos drivers.
 # Qualquer outra rota do canal é service-to-service dentro da rede do compose.
 canal.SEU-DOMINIO.com {
