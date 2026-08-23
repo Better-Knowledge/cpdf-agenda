@@ -21,6 +21,9 @@ export function Layout() {
           <NavLink to="/grade" className={aba}>
             Grade e bloqueios
           </NavLink>
+          <NavLink to="/fila" className={aba}>
+            Fila de espera
+          </NavLink>
           <NavLink to="/canal" className={aba}>
             Canal
           </NavLink>

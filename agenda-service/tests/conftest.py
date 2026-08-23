@@ -108,3 +108,56 @@ def catalogo(client):
             },
         )
     return {"servico": servico, "recurso": recurso}
+
+
+class CanalFake:
+    """Substitui o canal-service nos testes: registra o que teria sido
+    enviado e permite simular opt-out e indisponibilidade."""
+
+    def __init__(self):
+        self.enviados: list[dict] = []
+        self.optouts: list[str] = []
+        self.indisponivel = False
+
+    def enviar_template(self, *, org_id, destinatario, template_nome, variaveis, idempotency_key):
+        from app.canal_client import CanalIndisponivel
+
+        if self.indisponivel:
+            raise CanalIndisponivel("canal fora do ar (teste)")
+        if destinatario in self.optouts:
+            return {
+                "status_code": 403,
+                "code": "OPTOUT_ATIVO",
+                "message": "Este cliente pediu para não receber mensagens ativas.",
+            }
+        self.enviados.append(
+            {
+                "destinatario": destinatario,
+                "template_nome": template_nome,
+                "variaveis": variaveis,
+                "idempotency_key": idempotency_key,
+            }
+        )
+        return {"status_code": 200, "message_id": len(self.enviados), "status": "enviada"}
+
+    def chamar(self, metodo, rota, *, org_id, corpo=None):
+        from app.canal_client import CanalIndisponivel
+
+        if self.indisponivel:
+            raise CanalIndisponivel("canal fora do ar (teste)")
+        if rota == "/canal/optouts":
+            return 200, [{"telefone": t, "origem": "palavra_chave", "em": ""} for t in self.optouts]
+        return 200, {}
+
+
+@pytest.fixture()
+def canal_fake(monkeypatch):
+    """O canal real nunca é tocado nos testes — nem por engano."""
+    from app import canal_client, ofertas
+    from app.routers import waitlist
+
+    fake = CanalFake()
+    monkeypatch.setattr(ofertas.canal_client, "enviar_template", fake.enviar_template)
+    monkeypatch.setattr(waitlist.canal_client, "chamar", fake.chamar)
+    monkeypatch.setattr(canal_client, "enviar_template", fake.enviar_template)
+    return fake

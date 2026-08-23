@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     # Regras de agendamento (padrões do PRD; por-org fica para a etapa de configurações)
     granularidade_min: int = 30
+    # RF-14: quanto tempo o primeiro da fila tem para aceitar a oferta.
+    # Não é reserva — o slot segue livre na grade durante a janela.
+    fila_janela_aceite_min: int = 30
     antecedencia_minima_min: int = 60
     janela_maxima_dias: int = 60
 

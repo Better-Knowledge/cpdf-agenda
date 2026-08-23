@@ -1,11 +1,11 @@
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import confirmacao
+from .. import confirmacao, ofertas
 from .. import idempotency as idem
 from ..auth import Credencial, credencial_atual, exigir_escopo
 from ..booking import (
@@ -46,6 +46,7 @@ def _out(ap: Appointment) -> AppointmentOut:
         status=ap.status,
         origem=ap.origem,
         risco_no_show=ap.risco_no_show,
+        risco_detalhe=ap.risco_detalhe,
         observacoes=ap.observacoes,
         series_id=ap.series_id,
     )
@@ -187,6 +188,7 @@ def cancelar(
     appointment_id: UUID,
     dados: CancelIn,
     request: Request,
+    background: BackgroundTasks,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
@@ -223,6 +225,12 @@ def cancelar(
     corpo = _out(ap)
     idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200)
     db.commit()
+    # RF-14: o horário voltou para a grade — quem está na fila é avisado logo
+    # depois da resposta, não durante (o cancelamento não espera o WhatsApp).
+    background.add_task(
+        ofertas.ofertar_slot_liberado,
+        cred.org_id, ap.service_id, ap.resource_id, anterior.lower, anterior.upper,
+    )
     return corpo
 
 

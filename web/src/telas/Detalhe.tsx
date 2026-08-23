@@ -100,6 +100,22 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
         <span className={`selo ${c.status}`}>{c.status.replace("_", "-")}</span>{" "}
         {c.series_id && <span className="selo serie">recorrente</span>}{" "}
         {c.risco_no_show === "alto" && <span className="selo risco">risco de falta alto</span>}
+        {c.risco_detalhe && c.risco_no_show !== "baixo" && (
+          <details className="risco-composicao">
+            <summary>Por que o risco é {c.risco_no_show}?</summary>
+            <ul>
+              {c.risco_detalhe.fatores.map((f) => (
+                <li key={f.fator}>
+                  {f.detalhe} <span className="mono">+{f.pontos}</span>
+                </li>
+              ))}
+            </ul>
+            <p>
+              {c.risco_detalhe.pontos} ponto(s) somados por fatores observáveis — sem modelo
+              estatístico. O risco alto só pede uma confirmação a mais; nunca cancela nada.
+            </p>
+          </details>
+        )}
         <dl>
           <dt>Serviço</dt>
           <dd>{nomeServico}</dd>

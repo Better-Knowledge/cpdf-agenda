@@ -191,6 +191,8 @@ class WaitlistEntry(Base):
     status: Mapped[str] = mapped_column(Text, default="aguardando")
     ofertado_em: Mapped[datetime | None]
     expira_em: Mapped[datetime | None]
+    slot_ofertado = mapped_column(TSTZRANGE)  # o horário exato que a oferta propôs
+    resource_ofertado: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("resources.id"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     __table_args__ = (
         CheckConstraint(

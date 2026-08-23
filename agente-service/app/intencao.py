@@ -59,6 +59,8 @@ _REGRAS: tuple[tuple[str, str], ...] = (
     (r"^(nao|nao vou|nao posso|nao consigo|nao da|nao vai dar)( poder)?( ir| comparecer)?$", "cancelar"),
     (r"^(quero |preciso )?cancelar.{0,20}$", "cancelar"),
     (r"^(quero |preciso |podemos |da pra )?(remarcar|reagendar|mudar|adiar|trocar).{0,30}$", "remarcar"),
+    # O template da oferta pede "quero" — a palavra sozinha precisa bater.
+    (r"^(quero|aceito|aceito o horario|pode ser|fico com ele|pego|to dentro|eu quero)$", "aceitar_oferta"),
     (r"^(quero|aceito|pode ser|fico com|pego)( esse| este| o)? horario.{0,20}$", "aceitar_oferta"),
 )
 

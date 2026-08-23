@@ -25,6 +25,7 @@ from .routers import (
     resources,
     services,
     slots,
+    waitlist,
 )
 
 logging.basicConfig(level=settings().log_level)
@@ -96,6 +97,14 @@ TAGS = [
         "description": "Séries semanais/quinzenais (RF-15). Cada ocorrência é um compromisso próprio ligado ao `series_id`.",
     },
     {
+        "name": "fila de espera",
+        "description": (
+            "Fila por janela de horário (RF-14). Cancelamento que libera horário "
+            "compatível oferta ao primeiro da fila pelo canal — **sem reserva**: o "
+            "horário segue livre e quem confirmar primeiro leva."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -108,7 +117,7 @@ TAGS = [
 
 app = FastAPI(
     title="Agenda Inteligente — agenda-service",
-    version="0.3.0",
+    version="0.4.0",
     description=DESCRICAO,
     openapi_tags=TAGS,
     servers=[{"url": "https://cpdf-agenda.better-knowledge.com", "description": "Protótipo do programa"}],
@@ -125,6 +134,7 @@ app.include_router(availability.router)
 app.include_router(slots.router)
 app.include_router(appointments.router)
 app.include_router(recorrencia.router)
+app.include_router(waitlist.router)
 app.include_router(canal.router)
 
 

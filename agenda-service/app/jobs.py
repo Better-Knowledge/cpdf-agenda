@@ -12,7 +12,8 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
 
-from . import canal_client
+from . import canal_client, fila, ofertas
+from . import risco as risco_no_show
 from .db import SessionLocal, sessao_org, sessao_worker
 from .models import Appointment, Reminder, Service
 from .tempo import agora_utc, label_humano
@@ -58,6 +59,12 @@ def processar_lembretes() -> None:
                 r.erro = "compromisso encerrado antes do envio"
                 db.commit()
                 continue
+            # IA-03: o lembrete de 24h é o segundo gatilho do cálculo — até aqui
+            # o cliente pode ter faltado em outro compromisso.
+            if r.tipo == "lembrete_24h":
+                if risco_no_show.aplicar(db, ap) == "alto":
+                    agendar_lembrete_de_risco(db, ap)
+
             try:
                 resultado = canal_client.enviar_template(
                     org_id=ap.org_id,
@@ -86,7 +93,50 @@ def processar_lembretes() -> None:
             db.commit()
 
 
+def agendar_lembrete_de_risco(db, ap: Appointment) -> None:
+    """Risco alto ganha UM lembrete extra pedindo confirmação explícita
+    (IA-03). Nunca cancela nada — só pede resposta.
+
+    A unique (appointment_id, tipo) faz a idempotência: recalcular o risco
+    várias vezes não gera enxurrada de mensagem.
+    """
+    ja_existe = db.scalar(
+        select(Reminder).where(
+            Reminder.appointment_id == ap.id, Reminder.tipo == "risco_alto"
+        )
+    )
+    if ja_existe is not None:
+        return
+    db.add(
+        Reminder(
+            org_id=ap.org_id,
+            appointment_id=ap.id,
+            tipo="risco_alto",
+            agendado_para=agora_utc(),
+        )
+    )
+    log.info("risco alto em %s — lembrete extra de confirmação agendado", ap.id)
+
+
+def processar_fila() -> None:
+    """RF-14: oferta sem resposta na janela expira e o horário passa ao
+    próximo da fila — se ainda estiver livre, porque não houve reserva."""
+    with SessionLocal() as db:
+        sessao_worker(db)
+        vencidas = [
+            (e.org_id, e.service_id, e.resource_ofertado, e.slot_ofertado)
+            for e in fila.expirar_ofertas_vencidas(db)
+        ]
+        db.commit()
+
+    for org_id, service_id, resource_id, slot in vencidas:
+        if slot is None or resource_id is None:
+            continue  # oferta antiga sem registro do que foi proposto
+        ofertas.ofertar_slot_liberado(org_id, service_id, resource_id, slot.lower, slot.upper)
+
+
 def criar_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(processar_lembretes, "interval", minutes=5, id="lembretes")
+    scheduler.add_job(processar_fila, "interval", minutes=1, id="fila")
     return scheduler
