@@ -55,6 +55,13 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   é a agenda, com o mesmo 403 que daria a um `curl`. Uma chave de serviço no
   `.env` dele recria o confused deputy que o RF-18 eliminou (teste:
   `test_o_conector_nao_tem_credencial_propria`).
+- **Data ambígua vira pergunta, não palpite** (§16): `agenda-mcp/app/datas.py`
+  levanta `Ambigua` com a pergunta pronta em vez de escolher um mês. "Dia 5"
+  quando o dia 5 já passou não é abril — é uma pergunta ao cliente.
+- **Nenhum conector MCP tem credencial própria** — vale para os dois. Um teste
+  em cada um falha se aparecer campo com cara de segredo em `Settings`.
+- **Métrica sem base de cálculo devolve `null`, nunca `0`** (`/metricas`):
+  "não houve compromisso" e "todos faltaram" são leituras opostas.
 - **O titular é cunhado onde o endereço é provado** (RF-19): dentro do
   `canal-service`, depois do `compare_digest` do token de webhook, e viaja
   assinado (`ats_…`, HMAC, 30 min). Nenhum serviço declara por quem age —

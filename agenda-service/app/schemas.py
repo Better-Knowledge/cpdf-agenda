@@ -1011,3 +1011,36 @@ class CalendlyRecebidoOut(BaseModel):
 
     importado: bool
     motivo: str
+
+
+# ── Métricas (T-10) ──────────────────────────────────────────────────────────
+
+
+class MetricasOut(BaseModel):
+    """Os números do PRD §4, no período pedido.
+
+    Percentuais saem como número de 0 a 100 com uma casa — a tela não faz
+    conta, só mostra. Quando o denominador é zero, o campo vem `None` em vez
+    de `0`: "não houve base para calcular" e "deu zero" são coisas diferentes,
+    e confundir as duas é como métrica engana.
+    """
+
+    de: date
+    ate: date
+    total: int
+    por_status: dict[str, int]
+    por_origem: dict[str, int]
+    pct_por_conversa: float | None = Field(
+        description="Agendamentos com origem `agente` sobre o total (alvo do §4: ≥ 90%)"
+    )
+    pct_no_show: float | None = Field(description="Faltas sobre os compromissos já passados")
+    pct_confirmados: float | None = Field(
+        description="Confirmados pelo cliente sobre os compromissos do período"
+    )
+    pct_ocupacao: float | None = Field(
+        description="Horas agendadas sobre as horas de grade disponíveis no período"
+    )
+    cancelados: int
+    fila_aguardando: int
+    fila_atendida: int = Field(description="Pessoas que entraram na fila e acabaram agendando")
+    narrativa: str = Field(description="Os mesmos números em uma frase, prontos para falar")

@@ -16,6 +16,11 @@ mcp.SEU-DOMINIO.com {
 	handle_path /agenda/admin/* {
 		reverse_proxy agenda-admin-mcp:8000
 	}
+	# Atendimento: https://mcp.SEU-DOMINIO.com/agenda/mcp
+	# A ordem importa — /agenda/admin/* é mais específico e casa primeiro.
+	handle_path /agenda/* {
+		reverse_proxy agenda-mcp:8000
+	}
 	handle {
 		respond "conector desconhecido" 404
 	}

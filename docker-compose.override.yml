@@ -54,6 +54,21 @@ services:
       - "traefik.http.services.cpdf-agenda-mcp.loadbalancer.server.port=8000"
       - "traefik.docker.network=web"
 
+  # O conector de atendimento fica em /mcp-atendimento do mesmo domínio, pelo
+  # mesmo motivo do administrativo: neste VPS não há host dedicado para MCP.
+  agenda-mcp:
+    networks: [interna, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.entrypoints=websecure"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.rule=Host(`cpdf-agenda.better-knowledge.com`) && PathPrefix(`/mcp-atendimento`)"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.service=cpdf-agenda-mcp-atendimento"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.middlewares=cpdf-mcp-atendimento-strip"
+      - "traefik.http.middlewares.cpdf-mcp-atendimento-strip.stripprefix.prefixes=/mcp-atendimento"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-agenda-mcp-atendimento.loadbalancer.server.port=8000"
+      - "traefik.docker.network=web"
+
   web:
     networks: [interna, web]
     labels:

@@ -5,15 +5,15 @@
 Inteligentes** (CPDF). Marcar, remarcar, confirmar e cancelar pelo WhatsApp,
 com lembretes que disparam com o notebook desligado.
 
-**Status:** etapas 1–7 do plano §17, mais a separação de papéis (etapa 9 em
-curso) — schema com RLS e constraint anti-double-booking, motor de slots,
-agendamento/reagendamento/cancelamento, recorrência, contrato OpenAPI com
-exemplos, UI do prestador, canal ligado a WhatsApp e Telegram reais, agente
-respondendo o inbound, fila de espera, risco de no-show, **autoridade por
-credencial** (RF-18), **isolamento por titular** (RF-19), superfície
-administrativa completa (catálogo, grade declarativa, credenciais), auditoria
-e o **conector MCP administrativo**. Faltam: o `agenda-mcp` de atendimento,
-espelho de tarefas, Google Calendar, .ics, link público e Calendly.
+**Status:** as dez etapas do plano §17 entregues — schema com RLS e constraint
+anti-double-booking, motor de slots, agendamento/reagendamento/cancelamento,
+recorrência, contrato OpenAPI com exemplos, UI do prestador, canal ligado a
+WhatsApp e Telegram reais, agente respondendo o inbound, fila de espera, risco
+de no-show, **autoridade por credencial** (RF-18), **isolamento por titular**
+(RF-19), auditoria, **Google Calendar** (push + busy-read), **feed .ics**,
+**link público**, **importação do Calendly**, métricas, e os **dois conectores
+MCP** (atendimento e administração). Fora do escopo do módulo: o espelho de
+tarefas (RF-07), que depende do módulo 03.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking
@@ -28,10 +28,15 @@ espelho de tarefas, Google Calendar, .ics, link público e Calendly.
   cliente final alcança o compromisso daquele cliente; quem opera a plataforma
   usa credencial administrativa. Credenciais em tabela, revogáveis, com escopo
   ajustável uma a uma
-- **`agenda-admin-mcp`** — a equipe cria agendas, define a grade da semana,
-  bloqueia férias e olha o dia **por conversa**, com a própria credencial. O
-  conector não tem chave própria: repassa a de quem chamou e nunca decide
-  autorização. O `agenda-mcp` de atendimento vem na etapa seguinte
+- **Google Calendar** (RF-12): o compromisso aparece no calendário do
+  prestador em menos de um minuto, e reunião marcada direto lá bloqueia o
+  horário aqui. Falha do Google nunca impede agendar
+- **Link público** de auto-agendamento (RF-13) e **feed .ics** (RF-11), para
+  quem prefere clicar e para quem não quer conectar OAuth
+- **Dois conectores MCP** — `agenda-mcp` (atendimento: 8 tools, alcança um
+  cliente por vez) e `agenda-admin-mcp` (a equipe: 11 tools de operação).
+  Nenhum dos dois tem chave própria: repassam a de quem chamou e nunca decidem
+  autorização
 
 ## Stack (canônica do programa)
 Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
@@ -49,6 +54,7 @@ Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
 agenda-service/   FastAPI + SQLAlchemy + Alembic — API da agenda (OpenAPI no /docs via Scalar)
 canal-service/    adapter de mensageria (telegram|evolution|zapi; meta = interface/aula)
 agente-service/   orquestrador do inbound (IA-04) — classifica a intenção e age pela API
+agenda-mcp/       conector MCP de atendimento (Streamable HTTP) — 8 tools, um cliente por vez
 agenda-admin-mcp/ conector MCP administrativo (Streamable HTTP) — 11 tools, sem credencial própria
 web/              UI do prestador (Vite + React, servida em /app) — segundo cliente da API
 docs/             PRD, contrato de arquitetura e openapi.json (artefato versionado)
@@ -59,12 +65,29 @@ As telas seguem o princípio do PRD §12: nenhuma chama banco ou tem regra
 própria — toda ação passa pela API pública. Telas entregues: T-01 (chave de
 acesso, fase 1), T-02 (agenda do dia), T-03 (detalhe + ações), T-04
 (serviços), T-05 (grade e bloqueios), T-06 (fila de espera), T-09 (canal:
-driver, QR code, templates e opt-outs) e T-11 (integrações: emitir, revogar e
-ver o último uso de cada credencial). `make web-dev` roda a UI local com proxy
-para a API.
+driver, QR code, templates e opt-outs), T-07 (links públicos), T-08
+(calendários: Google, .ics e Calendly), T-10 (os números do §4) e T-11 (chaves
+de acesso: emitir, revogar e ver o último uso). A página pública P-01
+(`/app/agendar/<slug>`) é a única sem credencial — e não importa nada do
+painel. `make web-dev` roda a UI local com proxy para a API.
 
 
-### O conector administrativo
+### Os dois conectores MCP
+
+São **dois servidores porque são duas autoridades** (PRD §14). Com um só, a
+separação dependeria de cada tool lembrar de conferir escopo — e a tool nova,
+escrita com pressa, esqueceria. Com dois, as ferramentas administrativas
+simplesmente **não existem** no endpoint que o lado de atendimento alcança: a
+fronteira vira topologia, não disciplina.
+
+`agenda-mcp` (`https://mcp.SEU-DOMINIO.com/agenda/mcp`) publica as 8 tools de
+atendimento. A credencial dele é, tipicamente, o token de sessão `ats_…` que o
+`canal-service` cunhou depois de provar o endereço de quem escreveu — por isso
+"meus compromissos" quer dizer os daquela pessoa. Ele entende data em
+português ("quinta de tarde", "semana que vem") e, quando a expressão é
+ambígua, devolve a **pergunta** a fazer ao cliente em vez de adivinhar.
+
+`make mcp-atendimento` sobe esse conector em `http://127.0.0.1:8101/mcp`.
 
 `agenda-admin-mcp` publica 11 tools em Streamable HTTP
 (`https://mcp.SEU-DOMINIO.com/agenda/admin/mcp`). A credencial é o
@@ -177,6 +200,14 @@ Deu errado no meio? `ATENDIMENTO_ISOLADO=0` devolve o comportamento antigo do
 `X-Service-Key` sem redeploy do código. É alavanca de emergência, não
 configuração: com ela desligada, um único segredo de ambiente volta a valer
 por todos os clientes da organização.
+
+### A demo final
+
+`docs/ROTEIRO-DEMO.md` traz o roteiro de 20 minutos: a equipe monta a agenda
+por conversa, um cliente marca pelo WhatsApp, o isolamento é demonstrado com
+`curl`, o cancelamento oferta o horário à fila, o compromisso aparece no
+Google Calendar — e o notebook do apresentador pode ser fechado, porque os
+lembretes rodam no VPS.
 
 ## Ecossistema
 | Módulo | Repo |

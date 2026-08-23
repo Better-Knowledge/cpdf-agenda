@@ -3393,6 +3393,178 @@
         "x-escopo-requerido": "agenda:operacao"
       }
     },
+    "/appointments/meus": {
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Compromissos futuros do cliente que está sendo atendido",
+        "description": "**Escopo:** `agenda:read`\n\nOs próximos compromissos de **um** cliente, na ordem. É o que o agente do canal usa para responder \"o que eu tenho marcado?\" sem enxergar a agenda de mais ninguém.\n\nNuma sessão de atendimento o parâmetro `telefone` é ignorado: quem responde é o titular que o canal provou. Sem sessão de atendimento, informar o telefone de outra pessoa exige `agenda:operacao` — do contrário a rota viraria enumeração, um telefone por chamada.",
+        "operationId": "meus_appointments_meus_get",
+        "parameters": [
+          {
+            "name": "telefone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Endereço no canal. Ignorado (e desnecessário) numa sessão de atendimento.",
+              "title": "Telefone"
+            },
+            "description": "Endereço no canal. Ignorado (e desnecessário) numa sessão de atendimento."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppointmentOut"
+                  },
+                  "title": "Response Meus Appointments Meus Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "TELEFONE_OBRIGATORIO": {
+                    "summary": "A credencial não fala por um cliente específico",
+                    "value": {
+                      "code": "TELEFONE_OBRIGATORIO",
+                      "message": "Informe o telefone do cliente.",
+                      "hint": "Esta credencial não fala por um cliente específico. Passe `telefone`, ou use GET /appointments?date= para ver o dia inteiro.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      }
+    },
     "/appointments/proximo": {
       "get": {
         "tags": [
@@ -8655,6 +8827,127 @@
         },
         "security": []
       }
+    },
+    "/metricas": {
+      "get": {
+        "tags": [
+          "métricas"
+        ],
+        "summary": "Os números da operação num período",
+        "description": "**Escopo:** `agenda:operacao`\n\nOcupação, faltas, confirmações e de onde vieram os agendamentos (conversa, link público, Calendly, humano) — as métricas do PRD §4. Percentual com denominador zero volta `null`, não `0`. Exige `agenda:operacao`: são dados da agenda inteira.",
+        "operationId": "metricas_metricas_get",
+        "parameters": [
+          {
+            "name": "de",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Primeiro dia do período (inclusive)",
+              "title": "De"
+            },
+            "description": "Primeiro dia do período (inclusive)"
+          },
+          {
+            "name": "ate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Último dia do período (inclusive)",
+              "title": "Ate"
+            },
+            "description": "Último dia do período (inclusive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricasOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer agk_…` (credencial de agente), `ats_…` (sessão de atendimento) ou o JWT do Supabase.",
+                      "retryable": false
+                    }
+                  },
+                  "SESSAO_INVALIDA": {
+                    "summary": "Token de sessão de atendimento inválido ou expirado",
+                    "value": {
+                      "code": "SESSAO_INVALIDA",
+                      "message": "Token de sessão de atendimento inválido: expirado",
+                      "hint": "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:operacao"
+      }
     }
   },
   "components": {
@@ -10415,6 +10708,122 @@
         "title": "JanelaSemana",
         "description": "Uma janela de trabalho, sem id: na definição declarativa a grade é\ndescrita inteira, não remendada janela a janela."
       },
+      "MetricasOut": {
+        "properties": {
+          "de": {
+            "type": "string",
+            "format": "date",
+            "title": "De"
+          },
+          "ate": {
+            "type": "string",
+            "format": "date",
+            "title": "Ate"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "por_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Por Status"
+          },
+          "por_origem": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Por Origem"
+          },
+          "pct_por_conversa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Por Conversa",
+            "description": "Agendamentos com origem `agente` sobre o total (alvo do §4: ≥ 90%)"
+          },
+          "pct_no_show": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct No Show",
+            "description": "Faltas sobre os compromissos já passados"
+          },
+          "pct_confirmados": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Confirmados",
+            "description": "Confirmados pelo cliente sobre os compromissos do período"
+          },
+          "pct_ocupacao": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Ocupacao",
+            "description": "Horas agendadas sobre as horas de grade disponíveis no período"
+          },
+          "cancelados": {
+            "type": "integer",
+            "title": "Cancelados"
+          },
+          "fila_aguardando": {
+            "type": "integer",
+            "title": "Fila Aguardando"
+          },
+          "fila_atendida": {
+            "type": "integer",
+            "title": "Fila Atendida",
+            "description": "Pessoas que entraram na fila e acabaram agendando"
+          },
+          "narrativa": {
+            "type": "string",
+            "title": "Narrativa",
+            "description": "Os mesmos números em uma frase, prontos para falar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "de",
+          "ate",
+          "total",
+          "por_status",
+          "por_origem",
+          "pct_por_conversa",
+          "pct_no_show",
+          "pct_confirmados",
+          "pct_ocupacao",
+          "cancelados",
+          "fila_aguardando",
+          "fila_atendida",
+          "narrativa"
+        ],
+        "title": "MetricasOut",
+        "description": "Os números do PRD §4, no período pedido.\n\nPercentuais saem como número de 0 a 100 com uma casa — a tela não faz\nconta, só mostra. Quando o denominador é zero, o campo vem `None` em vez\nde `0`: \"não houve base para calcular\" e \"deu zero\" são coisas diferentes,\ne confundir as duas é como métrica engana."
+      },
       "PaginaPublicaOut": {
         "properties": {
           "slug": {
@@ -11640,6 +12049,10 @@
     {
       "name": "calendly",
       "description": "Importação one-way do Calendly (RF-16), **opcional**: sem configurar, nada muda. O que é marcado lá aparece aqui e ocupa o horário; a agenda nunca escreve no Calendly."
+    },
+    {
+      "name": "métricas",
+      "description": "Os números do §4 no período: ocupação, faltas, confirmações e origem dos agendamentos. Percentual sem base de cálculo volta `null`, nunca `0`."
     },
     {
       "name": "canal",

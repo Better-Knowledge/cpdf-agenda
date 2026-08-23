@@ -462,3 +462,63 @@ def _cliente_sabe_confirmar(ctx: Context) -> bool:
 )
 async def agenda_admin_credenciais_listar(ctx: Context) -> dict:
     return {"credenciais": await _chamar(ctx, "GET", "/credenciais", "agenda_admin_credenciais_listar")}
+
+
+# ── Prompts (§14.3) ──────────────────────────────────────────────────────────
+#
+# Prompt aqui é roteiro, não automação: ele diz ao modelo em que ordem chamar
+# as tools e o que reportar. Fica no conector administrativo porque os três do
+# PRD são perguntas de quem opera a agenda — quem atende um cliente vê uma
+# agenda de uma pessoa só, e nenhuma dessas perguntas faz sentido lá.
+
+
+@mcp.prompt(
+    title="Como está o dia",
+    description="Lê a agenda de um dia e destaca conflitos, faltas prováveis e buracos.",
+)
+def agenda_do_dia(data: str) -> str:
+    return (
+        f"Use `agenda_admin_dia` para {data} e me devolva, nesta ordem:\n"
+        "1. quantos compromissos e quanto tempo somam;\n"
+        "2. quem está com risco de falta alto ou médio — nomeie e diga o horário;\n"
+        "3. os buracos entre um atendimento e outro, com duração;\n"
+        "4. bloqueios vigentes que expliquem esses buracos.\n\n"
+        "Fale em português claro, horários por extenso (use o `label_humano` que vier "
+        "na resposta). Não invente números: se algo não veio na resposta, diga que não "
+        "veio."
+    )
+
+
+@mcp.prompt(
+    title="Remarcar a semana",
+    description="Dado um bloqueio novo (férias, imprevisto), lista os afetados e propõe realocação.",
+)
+def remarcar_semana(de: str, ate: str, motivo: str = "imprevisto") -> str:
+    return (
+        f"Preciso bloquear de {de} a {ate} ({motivo}).\n\n"
+        "Antes de mudar qualquer coisa:\n"
+        "1. use `agenda_admin_dia` em cada dia do período e liste quem está marcado;\n"
+        "2. para cada pessoa, use `agenda_admin_grade_ver` e proponha 2 horários "
+        "alternativos próximos, fora do período bloqueado;\n"
+        "3. me mostre a lista completa — pessoa, horário atual, alternativas — e "
+        "**pare aí**.\n\n"
+        "Não crie o bloqueio nem remarque ninguém sem meu OK explícito: remarcar "
+        "compromisso de cliente é conversa que alguém precisa ter, não efeito colateral "
+        "de um bloqueio."
+    )
+
+
+@mcp.prompt(
+    title="Confirmar pendentes",
+    description="Lista compromissos das próximas 24h sem confirmação e prepara as mensagens.",
+)
+def confirmar_pendentes(data: str) -> str:
+    return (
+        f"Use `agenda_admin_dia` para {data} e separe os compromissos que ainda estão "
+        "como `agendado` (ou seja, o cliente não confirmou).\n\n"
+        "Para cada um, escreva a mensagem que eu mandaria — curta, cordial, com a data "
+        "por extenso e uma pergunta fechada ('confirma?'). Destaque quem tem risco de "
+        "falta alto.\n\n"
+        "Só escreva os textos: quem dispara mensagem ativa é a régua de lembretes do "
+        "produto, por template aprovado — não o agente, e não por aqui."
+    )

@@ -39,6 +39,19 @@ services:
     restart: unless-stopped
     networks: [interna]
 
+  # O conector de atendimento (PRD §14.1). Separado do administrativo de
+  # propósito: as tools que operam a plataforma não existem neste endpoint,
+  # que é o alcançado — indiretamente — pelo cliente final.
+  agenda-mcp:
+    build: ./agenda-mcp
+    env_file: .env
+    environment:
+      AGENDA_SERVICE_URL: http://agenda-service:8000
+    depends_on:
+      - agenda-service
+    restart: unless-stopped
+    networks: [interna]
+
   web:
     build: ./web
     restart: unless-stopped

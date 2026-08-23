@@ -27,6 +27,7 @@ from .routers import (
     health,
     ics,
     integracoes,
+    metricas,
     recorrencia,
     resources,
     services,
@@ -171,6 +172,13 @@ TAGS = [
         ),
     },
     {
+        "name": "métricas",
+        "description": (
+            "Os números do §4 no período: ocupação, faltas, confirmações e origem dos "
+            "agendamentos. Percentual sem base de cálculo volta `null`, nunca `0`."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -211,6 +219,7 @@ app.include_router(ics.router)
 app.include_router(integracoes.router)
 app.include_router(booking_links.router)
 app.include_router(calendly.router)
+app.include_router(metricas.router)
 
 
 def openapi_contrato():

@@ -22,6 +22,7 @@ import { Fila } from "./telas/Fila";
 import { Entrar } from "./telas/Entrar";
 import { Grade } from "./telas/Grade";
 import { Links } from "./telas/Links";
+import { Metricas } from "./telas/Metricas";
 import { Servicos } from "./telas/Servicos";
 
 function Protegido({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ createRoot(document.getElementById("raiz")!).render(
           <Route path="/fila" element={<Fila />} />
           <Route path="/links" element={<Links />} />
           <Route path="/calendarios" element={<Calendarios />} />
+          <Route path="/metricas" element={<Metricas />} />
           <Route path="/canal" element={<Canal />} />
           <Route path="/credenciais" element={<Credenciais />} />
         </Route>

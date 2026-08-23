@@ -30,6 +30,9 @@ export function Layout() {
           <NavLink to="/calendarios" className={aba}>
             Calendários
           </NavLink>
+          <NavLink to="/metricas" className={aba}>
+            Números
+          </NavLink>
           <NavLink to="/canal" className={aba}>
             Canal
           </NavLink>

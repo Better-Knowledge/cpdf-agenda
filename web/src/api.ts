@@ -338,3 +338,19 @@ export const publico = {
   get: <T>(rota: string) => chamarPublico<T>("GET", rota),
   post: <T>(rota: string, corpo: unknown) => chamarPublico<T>("POST", rota, corpo),
 };
+
+export interface Metricas {
+  de: string;
+  ate: string;
+  total: number;
+  por_status: Record<string, number>;
+  por_origem: Record<string, number>;
+  pct_por_conversa: number | null;
+  pct_no_show: number | null;
+  pct_confirmados: number | null;
+  pct_ocupacao: number | null;
+  cancelados: number;
+  fila_aguardando: number;
+  fila_atendida: number;
+  narrativa: string;
+}

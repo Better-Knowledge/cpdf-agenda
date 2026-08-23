@@ -1141,6 +1141,16 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 
 ### 14.2 Resources
 
+> **Decisão da etapa 10 (implementação):** o `agenda-mcp` **não publica
+> resources**. O SDK não injeta o contexto da requisição em resource de URI
+> estática — e sem contexto não há o `Authorization` do chamador, que é a
+> única credencial que este conector tem (ele não guarda nenhuma, §14.5).
+> Servir `agenda://servicos` exigiria uma chave de serviço no conector, que é
+> exatamente o que o RF-18 eliminou. As mesmas leituras estão nas tools, que
+> recebem contexto. As URIs administrativas da tabela abaixo (`dia`,
+> `compromisso`, `grade`) pertencem, desde o RF-19, à superfície do
+> `agenda-admin-mcp`, não à de atendimento.
+
 | URI | Conteúdo |
 |---|---|
 | `agenda://servicos` | Serviços ativos com preço, duração e buffers |
@@ -1150,6 +1160,11 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 | `agenda://grade/{recurso_id}` | Horário de trabalho e bloqueios vigentes |
 
 ### 14.3 Prompts
+
+> Implementados no **`agenda-admin-mcp`**: os três são perguntas de quem opera
+> a agenda inteira. Quem atende um cliente vê a agenda de uma pessoa só, e
+> nenhuma delas faz sentido lá. Prompt é roteiro, não automação — o de
+> `remarcar_semana` termina explicitamente com "me mostre a lista e pare aí".
 
 | Prompt | O que faz |
 |---|---|

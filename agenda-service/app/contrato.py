@@ -200,6 +200,19 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "TELEFONE_OBRIGATORIO": (
+        400,
+        "A credencial não fala por um cliente específico",
+        {
+            "code": "TELEFONE_OBRIGATORIO",
+            "message": "Informe o telefone do cliente.",
+            "hint": (
+                "Esta credencial não fala por um cliente específico. Passe `telefone`, "
+                "ou use GET /appointments?date= para ver o dia inteiro."
+            ),
+            "retryable": False,
+        },
+    ),
     "LINK_INATIVO": (
         409,
         "O link de auto-agendamento está desativado",
