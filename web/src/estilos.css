@@ -270,6 +270,7 @@ table.lista td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
 .selo.realizado { background: var(--bg-sunk); color: var(--fg-muted); }
 .selo.no_show { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
 .selo.risco { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
+.selo.serie { background: var(--bg-sunk); color: var(--fg-muted); }
 
 .aviso-erro {
   background: rgba(192, 67, 45, 0.09);
