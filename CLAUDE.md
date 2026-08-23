@@ -78,9 +78,9 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
 - Cancelamento exige confirmação humana (elicitation MCP ou `confirmation_token`)
 
 ## Licença
-Apache 2.0 (`LICENSE`, verbatim — não edite) + `NOTICE` com a atribuição
-obrigatória da Seção 4(d). Autor: Fernando Melo Faraco
-<fernando.faraco@better-knowledge.com.br> (CPDF · Better-Knowledge).
+MIT (`LICENSE`) — corpo do texto verbatim, só a linha de copyright é nossa.
+Autor: Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+(CPDF · Better-Knowledge).
 
 **Todo arquivo-fonte novo (`.py`, `.ts`, `.tsx`, `.css`) começa com o
 cabeçalho SPDX** — duas linhas, antes de qualquer código e antes da docstring
@@ -88,14 +88,13 @@ cabeçalho SPDX** — duas linhas, antes de qualquer código e antes da docstrin
 a docstring):
 
 ```python
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
 ```
 
-`//` em `.ts`/`.tsx`; `/* … */` em `.css`. É a Seção 4(c) na prática: o
-cabeçalho é o que mantém a atribuição colada ao código quando um arquivo
-viaja sozinho, fora do repositório — que é justamente quando `LICENSE` e
-`NOTICE` não vão junto. Conferir com:
+`//` em `.ts`/`.tsx`; `/* … */` em `.css`. Sob a MIT o cabeçalho carrega mais
+peso do que sob a Apache: não há `NOTICE`, então é ele que mantém a atribuição
+colada ao código quando um arquivo viaja sozinho. Conferir com:
 
 ```bash
 git ls-files '*.py' '*.ts' '*.tsx' '*.css' | xargs grep -L SPDX-License-Identifier

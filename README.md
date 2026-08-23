@@ -211,26 +211,22 @@ lembretes rodam no VPS.
 
 ## Licença e atribuição
 
-**Apache License 2.0** — texto completo em [LICENSE](LICENSE), atribuição em
-[NOTICE](NOTICE).
+**MIT** — texto completo em [LICENSE](LICENSE).
 
 Autoria: **Fernando Melo Faraco** (<fernando.faraco@better-knowledge.com.br>),
 **Comunidade Profissionais do Futuro (CPDF)** e **Better-Knowledge**.
 
-A atribuição é **obrigatória**, e o mecanismo é o arquivo `NOTICE`: a Seção
-4(d) da licença faz da preservação dele uma condição, não uma cortesia. Quem
-redistribuir este software — com ou sem modificações, em código ou compilado —
-precisa entregar uma cópia legível daquele aviso, seja no `NOTICE` da obra
-derivada, na documentação que acompanha a distribuição, ou numa tela do
-produto onde avisos de terceiros costumam aparecer. Arquivos modificados
-precisam dizer que foram modificados (4(b)), e os avisos de copyright e
-atribuição no código-fonte precisam ser preservados (4(c)).
+A atribuição é condição da licença: o aviso de copyright e o texto da MIT
+**devem** acompanhar todas as cópias e as partes substanciais do software —
+inclusive dentro de obras derivadas e de produtos fechados. Todo arquivo-fonte
+carrega um cabeçalho SPDX com essa informação, para que o crédito não se perca
+quando um arquivo viaja sozinho, sem o `LICENSE` da raiz.
 
-O que a Apache 2.0 **não** faz é obrigar quem usa o software a exibir o seu
-nome — obrigação de propaganda é justamente o que a licença evita. Se o
-requisito for "todo aplicativo derivado mostra o crédito na interface", isso
-não cabe na Apache 2.0: seria uma licença diferente, e chamá-la de Apache
-2.0 confundiria quem lê.
+O que a MIT **não** exige: marcar arquivos modificados, preservar um arquivo
+`NOTICE`, ou exibir o seu nome na interface de quem usa o software. Ela também
+não concede licença de patente explícita — a Apache 2.0 concede. Foi uma
+escolha por simplicidade e adoção: a MIT é a licença que menos atrito cria
+para quem quer estudar, copiar um trecho em aula e construir em cima.
 
 ## Ecossistema
 | Módulo | Repo |
