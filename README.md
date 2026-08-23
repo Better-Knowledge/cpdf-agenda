@@ -5,12 +5,13 @@
 Inteligentes** (CPDF). Marcar, remarcar, confirmar e cancelar pelo WhatsApp,
 com lembretes que disparam com o notebook desligado.
 
-**Status:** etapas 1–6 do plano §17 — schema com RLS e constraint
-anti-double-booking, motor de slots, agendamento/reagendamento/cancelamento,
-recorrência, contrato OpenAPI com exemplos, UI do prestador, canal ligado a
-uma instância real de WhatsApp (QR pela própria UI) e o agente respondendo o
-inbound. Faltam: espelho de tarefas, fila de espera, Google Calendar, .ics,
-link público, Calendly e o `agenda-mcp`.
+**Status:** etapas 1–7 do plano §17, mais a fundação de papéis (etapa 9 em
+curso) — schema com RLS e constraint anti-double-booking, motor de slots,
+agendamento/reagendamento/cancelamento, recorrência, contrato OpenAPI com
+exemplos, UI do prestador, canal ligado a WhatsApp e Telegram reais, agente
+respondendo o inbound, fila de espera, risco de no-show e **autoridade por
+credencial** (RF-18). Faltam: isolamento por titular (RF-19), espelho de
+tarefas, Google Calendar, .ics, link público, Calendly e os conectores MCP.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking
@@ -21,7 +22,12 @@ link público, Calendly e o `agenda-mcp`.
 - Confirmações e lembretes automáticos via template
 - Espelho no [Gestor de Tarefas](https://github.com/Better-Knowledge/cpdf-gestor-tarefas)
   e feed .ics para Google/Apple Calendar
-- Conector MCP `agenda-mcp` (OAuth 2.1) para operação por agentes remotos
+- **Dois papéis de agente com autoridades verificadas** (RF-18): quem atende o
+  cliente final alcança o compromisso daquele cliente; quem opera a plataforma
+  usa credencial administrativa. Credenciais em tabela, revogáveis, com escopo
+  ajustável uma a uma
+- Conectores MCP: `agenda-mcp` (atendimento) e **`agenda-admin-mcp`** — a
+  equipe criando agendas, grade e consultando apontamentos por conversa
 
 ## Stack (canônica do programa)
 Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 + Alembic · Supabase
