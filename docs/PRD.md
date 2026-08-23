@@ -413,21 +413,39 @@ Definidas no conector MCP (§14). Resumo: 8 tools, escopos `agenda:read` /
 > assíncrono, idempotência por ID de evento, segredo verificado, replay tolerado.
 > Segredos por organização cifrados, write-only, nunca em log.
 
-### 9.1 WhatsApp via `canal-service` — 3 drivers
+### 9.1 Mensageria via `canal-service` — 4 drivers
 
-| | Evolution API | Z-API | Meta Cloud API |
-|---|---|---|---|
-| **Status no programa** | ✅ implementado | ✅ implementado | interface + aula (extensão guiada) |
-| **Auth** | apikey da instância self-host | client-token da instância | token de app + verificação de negócio |
-| **Custo** | zero (roda no próprio VPS) | assinatura por instância | por conversa/template (tabela Meta) |
-| **Mensagem ativa** | texto livre (template renderizado) | texto livre (template renderizado) | **template pré-aprovado obrigatório** |
-| **Risco** | não-oficial — banimento possível | não-oficial — banimento possível | oficial, sem risco de ToS |
-| **Webhook inbound** | por instância → `/webhooks/canal/evolution` | → `/webhooks/canal/zapi` | → `/webhooks/canal/meta` |
+| | Telegram | Evolution API | Z-API | Meta Cloud API |
+|---|---|---|---|---|
+| **Status no programa** | ✅ implementado | ✅ implementado | ✅ implementado | interface + aula (extensão guiada) |
+| **Auth** | token de bot (BotFather) | apikey da instância self-host | client-token da instância | token de app + verificação de negócio |
+| **Custo** | zero | zero (roda no próprio VPS) | assinatura por instância | por conversa/template (tabela Meta) |
+| **Preparo** | ~1 min, sem chip nem QR | chip dedicado + pareamento por QR | assinatura + instância | verificação de negócio |
+| **Mensagem ativa** | texto livre (template renderizado) | texto livre (template renderizado) | texto livre (template renderizado) | **template pré-aprovado obrigatório** |
+| **Risco** | nenhum (bot é identidade própria) | não-oficial — banimento possível | não-oficial — banimento possível | oficial, sem risco de ToS |
+| **Endereço do cliente** | `tg:<chat_id>` | E.164 | E.164 | E.164 |
+| **Webhook inbound** | → `/webhooks/canal/telegram` | por instância → `/webhooks/canal/evolution` | → `/webhooks/canal/zapi` | → `/webhooks/canal/meta` |
 
-Aula prática: Evolution self-host no VPS (custo zero, QR code ao vivo) + Z-API
-como segunda instância para **demonstrar a troca de driver por configuração**.
-Meta entra como aula: verificação, templates, tabela de preços — e por que o
-sistema já está pronto para ela (template-first).
+**Telegram é o canal de demonstração**: o token sai do BotFather em um minuto,
+qualquer pessoa da turma testa no próprio celular e não há chip, QR nem risco
+de bloqueio no caminho. Ele existe porque prova a promessa do adapter — a
+**mesma suíte de aceite passa nos três drivers implementados**, inclusive num
+canal que sequer usa telefone. É a evidência mais forte de que trocar de
+canal é configuração.
+
+Aula prática: Telegram para todo mundo mexer, Evolution self-host no VPS
+(WhatsApp de verdade, QR code ao vivo) e Z-API como segunda instância para
+**demonstrar a troca de driver por configuração**. Meta entra como aula:
+verificação, templates, tabela de preços — e por que o sistema já está pronto
+para ela (template-first).
+
+> **Onde a abstração vaza, e como fica contida:** o sistema nasceu com
+> `telefone` como endereço do cliente. Telegram não usa telefone, usa
+> `chat_id`. Em vez de renomear tudo (refactor grande) ou guardar o número cru
+> (ambíguo), o canal grava `tg:<chat_id>` — autodescritivo e impossível de
+> colidir com E.164, que sempre começa com `+`. O campo passa a significar
+> "endereço do cliente **neste canal**". Reconhecer o vazamento e contê-lo com
+> uma convenção legível é o conteúdo da aula.
 
 ### 9.2 Feed .ics (RF-11)
 Sem OAuth — o segredo é o token na URL, revogável. Conteúdo mínimo, modo

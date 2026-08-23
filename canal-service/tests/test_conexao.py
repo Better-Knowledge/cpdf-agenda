@@ -114,8 +114,9 @@ def test_conectar_pela_rota_devolve_qr(client, canal_configurado, monkeypatch):
     canal_configurado("evolution")
 
     import app.routers.canal as canal_router
+    from app.drivers.evolution import DriverEvolution
 
-    class DriverStub:
+    class DriverStub(DriverEvolution):
         def conectar(self, credenciais, webhook_url):
             from app.drivers.base import EstadoConexao
 
@@ -124,7 +125,7 @@ def test_conectar_pela_rota_devolve_qr(client, canal_configurado, monkeypatch):
             assert "?token=" in webhook_url
             return EstadoConexao(estado="aguardando_qr", qr_base64="data:image/png;base64,QQ==")
 
-    monkeypatch.setattr(canal_router, "obter_driver", lambda nome: DriverStub())
+    monkeypatch.setattr(canal_router, "obter_driver", lambda nome, http=None: DriverStub())
     corpo = client.post("/canal/conectar").json()
     assert corpo["estado"] == "aguardando_qr"
     assert corpo["qr_base64"].startswith("data:image/png")

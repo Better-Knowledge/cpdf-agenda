@@ -122,9 +122,16 @@ def tratar(org_id: UUID, telefone: str, texto: str) -> Resultado:
         _TENTATIVAS[chave] = _TENTATIVAS.get(chave, 0) + 1
         if _TENTATIVAS[chave] >= 2:
             return _para_humano(org_id, telefone, texto, "segunda falha de interpretação")
+        # A pergunta muda com a situação: oferecer "confirmar ou cancelar" a
+        # quem não tem horário nenhum é conversa de robô.
         resposta = (
-            "Não tenho certeza se entendi. Você quer *confirmar*, *remarcar* ou "
-            "*cancelar* o seu horário?"
+            "Não tenho certeza se entendi. Você quer confirmar, remarcar ou cancelar "
+            "o seu horário?"
+            if compromisso
+            else (
+                "Oi! Ainda não tenho um horário no seu nome. Quer marcar? "
+                "Me diga o dia e o período que prefere — alguém da equipe confirma com você."
+            )
         )
         clientes.responder(org_id, telefone, resposta)
         return Resultado(

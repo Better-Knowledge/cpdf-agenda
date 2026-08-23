@@ -17,6 +17,7 @@ _ESTADOS = {"open": "conectado", "connecting": "aguardando_qr", "close": "descon
 class DriverEvolution(DriverCanal):
     nome = "evolution"
     suporta_texto_livre_ativo = True  # não-oficial: template renderizado sai como texto
+    hospedado_localmente = True  # self-host no VPS: fala com o canal pela rede interna
 
     def _chamar(self, credenciais, metodo: str, rota: str, corpo=None) -> dict[str, Any]:
         url = f"{credenciais['server_url'].rstrip('/')}{rota}"

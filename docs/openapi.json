@@ -2744,11 +2744,11 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 8,
-              "description": "Telefone E.164, ex.: +5511998765432",
+              "minLength": 3,
+              "description": "Endereço do cliente no canal: +5511998765432 (WhatsApp) ou tg:123456789 (Telegram)",
               "title": "Telefone"
             },
-            "description": "Telefone E.164, ex.: +5511998765432"
+            "description": "Endereço do cliente no canal: +5511998765432 (WhatsApp) ou tg:123456789 (Telegram)"
           }
         ],
         "responses": {
@@ -3653,8 +3653,8 @@
         "tags": [
           "canal"
         ],
-        "summary": "Conecta a instância do WhatsApp e devolve o QR code",
-        "description": "**Escopo:** `agenda:write`\n\nGarante a instância no servidor do driver, aponta o webhook do inbound para o canal e devolve o QR (data URI) para parear em WhatsApp > Aparelhos conectados. Só drivers self-host (Evolution) — nos demais a conexão é no painel do fornecedor.",
+        "summary": "Conecta o canal (QR no WhatsApp, ativação do bot no Telegram)",
+        "description": "**Escopo:** `agenda:write`\n\nRegistra o webhook do inbound e deixa o canal pronto para conversar. No Evolution devolve o QR (data URI) para parear em WhatsApp > Aparelhos conectados; no Telegram já volta `conectado` — bot não pareia. Z-API e Meta conectam no painel do fornecedor.",
         "operationId": "conectar_canal_conectar_post",
         "responses": {
           "200": {
@@ -4452,8 +4452,9 @@
           },
           "cliente_telefone": {
             "type": "string",
-            "minLength": 8,
-            "title": "Cliente Telefone"
+            "minLength": 3,
+            "title": "Cliente Telefone",
+            "description": "Endereço do cliente no canal: E.164 no WhatsApp (+5511998765432) ou tg:<chat_id> no Telegram. É por ele que os lembretes saem."
           },
           "resource_id": {
             "anyOf": [
@@ -4781,13 +4782,13 @@
           "driver": {
             "type": "string",
             "title": "Driver",
-            "description": "evolution | zapi | meta — trocar é só configuração"
+            "description": "telegram | evolution | zapi | meta — trocar é só configuração"
           },
           "numero": {
             "type": "string",
-            "minLength": 8,
+            "minLength": 3,
             "title": "Numero",
-            "description": "Número DEDICADO da organização, E.164"
+            "description": "WhatsApp: número DEDICADO em E.164. Telegram: @usuario do bot"
           },
           "instancia": {
             "type": "string",
@@ -4806,7 +4807,7 @@
           "confirmo_numero_dedicado": {
             "type": "boolean",
             "title": "Confirmo Numero Dedicado",
-            "description": "O produto recusa número pessoal — declare que o número é dedicado",
+            "description": "O produto recusa número pessoal — declare que o número é dedicado. Não se aplica ao Telegram: um bot já é identidade separada",
             "default": false
           }
         },
@@ -4820,14 +4821,28 @@
         "title": "CanalConfigIn",
         "examples": [
           {
-            "confirmo_numero_dedicado": true,
-            "credenciais": {
-              "apikey": "…",
-              "server_url": "http://evolution_api:8080"
-            },
-            "driver": "evolution",
-            "instancia": "minha-org",
-            "numero": "+5511900000000"
+            "summary": "Telegram (o mais simples de testar)",
+            "value": {
+              "credenciais": {
+                "bot_token": "123456789:AAE…"
+              },
+              "driver": "telegram",
+              "instancia": "agenda-da-aula",
+              "numero": "@minha_agenda_bot"
+            }
+          },
+          {
+            "summary": "WhatsApp via Evolution (self-host)",
+            "value": {
+              "confirmo_numero_dedicado": true,
+              "credenciais": {
+                "apikey": "…",
+                "server_url": "http://evolution_api:8080"
+              },
+              "driver": "evolution",
+              "instancia": "minha-org",
+              "numero": "+5511900000000"
+            }
           }
         ]
       },
@@ -4897,7 +4912,8 @@
         "properties": {
           "telefone": {
             "type": "string",
-            "title": "Telefone"
+            "title": "Telefone",
+            "description": "Endereço no canal: E.164 ou tg:<chat_id>"
           },
           "origem": {
             "anyOf": [
@@ -5271,8 +5287,9 @@
           },
           "cliente_telefone": {
             "type": "string",
-            "minLength": 8,
-            "title": "Cliente Telefone"
+            "minLength": 3,
+            "title": "Cliente Telefone",
+            "description": "E.164 no WhatsApp ou tg:<chat_id> no Telegram"
           },
           "frequencia": {
             "type": "string",
@@ -6040,7 +6057,7 @@
     },
     {
       "name": "canal",
-      "description": "Canal de WhatsApp (T-09), por procuração: a UI fala com o agenda-service e ele repassa ao canal-service — que nunca é exposto ao navegador. Credenciais de driver são write-only."
+      "description": "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e ele repassa ao canal-service — que nunca é exposto ao navegador. Drivers: `telegram` (bot, o mais simples de testar), `evolution` e `zapi` (WhatsApp), `meta` (extensão). Credenciais são write-only."
     }
   ],
   "security": [

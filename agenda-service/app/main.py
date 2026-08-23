@@ -98,9 +98,10 @@ TAGS = [
     {
         "name": "canal",
         "description": (
-            "Canal de WhatsApp (T-09), por procuração: a UI fala com o agenda-service e "
-            "ele repassa ao canal-service — que nunca é exposto ao navegador. "
-            "Credenciais de driver são write-only."
+            "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
+            "ele repassa ao canal-service — que nunca é exposto ao navegador. Drivers: "
+            "`telegram` (bot, o mais simples de testar), `evolution` e `zapi` (WhatsApp), "
+            "`meta` (extensão). Credenciais são write-only."
         ),
     },
 ]

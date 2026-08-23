@@ -151,7 +151,12 @@ def _processar(driver_obj: DriverCanal, inbound: MensagemInbound, token: str) ->
 
 def _receber(nome_driver: str):
     async def endpoint(request: Request, background: BackgroundTasks) -> dict:
-        token = request.query_params.get("token", "")
+        # O segredo pode vir na URL (Evolution, Z-API) ou no header — é assim
+        # que o Telegram devolve o `secret_token` do setWebhook, e header não
+        # vaza em log de acesso nem em referrer.
+        token = request.headers.get("X-Telegram-Bot-Api-Secret-Token") or request.query_params.get(
+            "token", ""
+        )
         payload = await request.json()
         driver_obj = obter_driver(nome_driver)
         try:
@@ -160,6 +165,12 @@ def _receber(nome_driver: str):
             return {"resultado": "driver_em_extensao"}
         if inbound is None:
             return {"resultado": "evento_ignorado"}
+        if not inbound.instancia:
+            # Driver que não se identifica no payload: a instância vem da URL,
+            # que é única por organização. Continua sendo o token que autentica.
+            from dataclasses import replace
+
+            inbound = replace(inbound, instancia=request.query_params.get("instancia", ""))
         try:
             resultado = _processar(driver_obj, inbound, token)
         except Exception:
@@ -182,6 +193,10 @@ router.add_api_route(
 )
 router.add_api_route(
     "/webhooks/canal/zapi", _receber("zapi"), methods=["POST"], summary="Inbound Z-API"
+)
+router.add_api_route(
+    "/webhooks/canal/telegram", _receber("telegram"), methods=["POST"],
+    summary="Inbound Telegram Bot API",
 )
 router.add_api_route(
     "/webhooks/canal/meta", _receber("meta"), methods=["POST"],

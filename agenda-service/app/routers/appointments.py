@@ -315,7 +315,10 @@ def listar(
     openapi_extra=operacao("agenda:read"),
 )
 def proximo(
-    telefone: str = Query(min_length=8, description="Telefone E.164, ex.: +5511998765432"),
+    telefone: str = Query(
+        min_length=3,
+        description="Endereço do cliente no canal: +5511998765432 (WhatsApp) ou tg:123456789 (Telegram)",
+    ),
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):

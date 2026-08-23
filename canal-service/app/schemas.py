@@ -8,7 +8,10 @@ class EnviarIn(BaseModel):
     """Contrato do adapter (`00` §4.8): sessão × template é a assimetria
     que prepara a migração para a API oficial da Meta."""
 
-    destinatario: str = Field(min_length=8, description="Telefone E.164, ex.: +5511...")
+    destinatario: str = Field(
+        min_length=3,
+        description="Endereço do cliente no canal: E.164 no WhatsApp (+5511…), tg:<chat_id> no Telegram",
+    )
     tipo: Literal["sessao", "template"]
     template_nome: str | None = None
     template_id: UUID | None = None
@@ -38,13 +41,18 @@ class TemplateOut(BaseModel):
 
 
 class ConfigIn(BaseModel):
-    driver: Literal["evolution", "zapi", "meta"]
-    numero: str = Field(min_length=8)
+    driver: Literal["evolution", "zapi", "telegram", "meta"]
+    numero: str = Field(
+        min_length=3, description="WhatsApp: número dedicado E.164. Telegram: @usuario do bot"
+    )
     instancia: str = Field(min_length=1, description="Identificador da instância no driver")
     credenciais: dict[str, str]
     confirmo_numero_dedicado: bool = Field(
         default=False,
-        description="O produto recusa número pessoal — declare que o número é dedicado.",
+        description=(
+            "O produto recusa número pessoal — declare que o número é dedicado. "
+            "Não se aplica ao Telegram: um bot já é uma identidade própria."
+        ),
     )
 
 
