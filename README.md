@@ -10,9 +10,10 @@ curso) — schema com RLS e constraint anti-double-booking, motor de slots,
 agendamento/reagendamento/cancelamento, recorrência, contrato OpenAPI com
 exemplos, UI do prestador, canal ligado a WhatsApp e Telegram reais, agente
 respondendo o inbound, fila de espera, risco de no-show, **autoridade por
-credencial** (RF-18) e **isolamento por titular** (RF-19). Faltam: superfície
-administrativa completa, espelho de tarefas, Google Calendar, .ics, link
-público, Calendly e os conectores MCP.
+credencial** (RF-18), **isolamento por titular** (RF-19), superfície
+administrativa completa (catálogo, grade declarativa, credenciais) e
+auditoria. Faltam: espelho de tarefas, Google Calendar, .ics, link público,
+Calendly e os conectores MCP.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking

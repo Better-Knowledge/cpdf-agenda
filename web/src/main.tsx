@@ -14,6 +14,7 @@ import { Layout } from "./Layout";
 import { sessao } from "./api";
 import "./estilos.css";
 import { Canal } from "./telas/Canal";
+import { Credenciais } from "./telas/Credenciais";
 import { Dia } from "./telas/Dia";
 import { Fila } from "./telas/Fila";
 import { Entrar } from "./telas/Entrar";
@@ -43,6 +44,7 @@ createRoot(document.getElementById("raiz")!).render(
           <Route path="/grade" element={<Grade />} />
           <Route path="/fila" element={<Fila />} />
           <Route path="/canal" element={<Canal />} />
+          <Route path="/credenciais" element={<Credenciais />} />
         </Route>
       </Routes>
     </BrowserRouter>

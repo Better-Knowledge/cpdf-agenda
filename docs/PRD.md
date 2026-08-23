@@ -410,18 +410,33 @@ administrador ajusta uma a uma.
   aceite do §14.4, agora executável).
 - Credenciais vivem em tabela (§10), com **revogação sem redeploy**. O token
   em claro existe uma única vez, na criação; o banco guarda só o hash.
-- **`credenciais:admin` nunca entra em preset de credencial de agente.** Só
-  humano autenticado por JWT emite credencial — um token administrativo
-  comprometido não pode emitir outro para sobreviver à própria revogação.
+- **`credenciais:admin` nunca entra em preset de credencial de agente**, e
+  **não é concedível por rota** (403 `ESCOPO_NAO_DELEGAVEL`). As duas regras
+  respondem à mesma pergunta: um token administrativo comprometido não pode
+  emitir outro para sobreviver à própria revogação — e a revogação é a única
+  defesa que resta quando um token vaza.
 - A **primeira** credencial de uma organização nasce por linha de comando no
-  servidor, nunca por rota: um endpoint que emite credencial administrativa é
-  um backdoor permanente.
+  servidor: um endpoint capaz de emitir a si mesmo autoridade administrativa
+  seria um backdoor permanente. Depois disso a gestão do dia a dia — emitir
+  para um agente novo, listar, revogar — acontece por rota e pela tela T-11,
+  sob `credenciais:admin`.
+- Revogar **não apaga a linha**: `revogada_em` é preenchido e o registro fica,
+  porque o log de auditoria aponta para ele e um log que referencia um id
+  inexistente não responde "quem fez isso".
+- A revogação vale em até 30 s (o TTL do cache de credenciais). O prazo é
+  devolvido na própria resposta, em texto — um limite conhecido é um limite;
+  um limite escondido é uma surpresa.
 - `GET /credenciais/eu` devolve organização, papel, escopos e titular a
   qualquer credencial autenticada — descobrir a própria autoridade não é
   privilégio, e é o que permite ao agente falhar rápido em vez de tentar o que
   seria recusado.
 - Toda ação de agente é registrada em `agent_audit_log` (§10, `00` §5.8),
-  incluindo **em nome de qual cliente** ela foi feita.
+  incluindo **em nome de qual cliente** ela foi feita — e o registro acontece
+  no serviço de domínio, de modo que uma ação do bot do canal, que não passa
+  por MCP, aparece no log exatamente como a de um conector. Falha ao gravar a
+  auditoria não derruba a requisição do usuário, mas grita no log da
+  aplicação: uma auditoria que some em silêncio é pior do que não ter,
+  porque dá impressão de cobertura.
 
 ### RF-19 — Isolamento do agente de atendimento
 
@@ -854,8 +869,12 @@ da autenticação) · `agent_audit_log(org_id, created_at desc)`.
 ```
 # agenda-service
 GET  /services                        POST /services
-GET  /resources                       POST /availability/rules
-POST /availability/blocks
+PATCH/DELETE /services/{id}           # DELETE desativa (soft delete)
+GET  /resources                       POST /resources
+PATCH/DELETE /resources/{id}          # DELETE desativa (soft delete)
+GET  /availability/rules?resource_id=  POST /availability/rules
+PUT  /availability/rules?resource_id=  # define a SEMANA inteira, atômico
+POST /availability/blocks             GET  /availability/blocks (agenda:operacao)
 GET  /slots?service_id=&from=&to=     # motor de disponibilidade
 POST /appointments                    { service_id, inicio, cliente_nome, cliente_telefone }
 POST /appointments/{id}/reschedule    { novo_inicio }     # atômico
@@ -876,7 +895,8 @@ POST /waitlist/{id}/aceitar           POST /waitlist/{id}/cancelar
 POST /appointments/recorrentes        # RF-15: cria série + ocorrências
 POST /webhooks/calendly               # RF-16 (assinatura verificada)
 GET  /credenciais/eu                  # RF-18: papel, escopos e titular desta credencial
-GET  /credenciais                     DELETE /credenciais/{id}   # revogar (credenciais:admin)
+GET  /credenciais                     POST /credenciais          # credenciais:admin
+DELETE /credenciais/{id}              # revoga (idempotente; a linha permanece)
 GET  /docs                            # RF-17: OpenAPI 3.1 servida por Scalar
 GET  /openapi.json                    # spec exportada (artefato versionado)
 
@@ -890,8 +910,11 @@ POST /webhooks/canal/zapi             POST /webhooks/canal/meta
 ```
 
 Autorização por escopo em toda rota (RF-18) — o escopo exigido é declarado na
-própria spec e é a fonte dos escopos das tools MCP. Emitir credencial **não é
-rota**: nasce por linha de comando (`make credencial`). O `canal-service` só
+própria spec e é a fonte dos escopos das tools MCP. O **bootstrap** da primeira
+credencial administrativa é por linha de comando (`make credencial`); a gestão
+do dia a dia é por rota, sob `credenciais:admin`. A linha que nenhuma rota
+atravessa: `credenciais:admin` **não é delegável por API** — uma credencial
+capaz de emitir outra sobrevive à própria revogação. O `canal-service` só
 aceita chamadas dos serviços do programa (credencial service-to-service) —
 nunca do navegador; a única exceção pública é `/webhooks/canal/*`, que drivers
 de nuvem precisam alcançar e o segredo protege.
@@ -921,7 +944,7 @@ de nuvem precisam alcançar e o segredo protege.
 | T-07 | **Links públicos** | Criar/ativar/desativar links de auto-agendamento; configurar caução (RF-13) | `GET/POST /booking-links` |
 | T-08 | **Integrações** | Conectar/desconectar Google Calendar (botão OAuth + status), gerar/revogar tokens .ics, configurar webhook Calendly | `/integracoes/google/…` · `/ics/tokens` |
 | T-09 | **Canal de conversa** | Configurar driver (Telegram/Evolution/Z-API/Meta), número dedicado ou bot, **QR code da Evolution ao vivo**, status da conexão; editar templates (versionados) e ver opt-outs | `canal-service` (via backend; nunca direto do navegador) |
-| T-11 | **Credenciais de agente** (RF-18) | Emitir credencial escolhendo o papel e ajustando escopos um a um; revogar; ver último uso. O token aparece **uma única vez** | `GET/DELETE /credenciais` |
+| T-11 | **Integrações** (RF-18) | Emitir credencial escolhendo o papel e ajustando escopos um a um; revogar; ver último uso. O token aparece **uma única vez** — a tela não o guarda em lugar nenhum. `credenciais:admin` não é oferecido: a API o recusa, e mostrar a caixa seria mostrar uma armadilha. Uma chave sem `credenciais:admin` vê a explicação, não um 403 cru | `GET/POST/DELETE /credenciais` |
 | T-10 | **Métricas** | Os números do §4: ocupação, no-show antes/depois do lembrete, entrega de mensagens, agendamentos por origem (conversa, link, Calendly) | agregações de `GET /appointments` + canal |
 
 ### 12.2 Páginas públicas (sem login)
@@ -991,7 +1014,17 @@ de nuvem precisam alcançar e o segredo protege.
     toda leitura, porque quem o obtém forja mensagem de entrada como qualquer
     cliente da organização. Revelá-lo é ato explícito.
   - **Toda ação de agente é auditada** (`agent_audit_log`), com o cliente em
-    nome de quem foi feita.
+    nome de quem foi feita. A auditoria vive no **serviço de domínio**, não no
+    conector MCP: fosse no conector, as ações do agente de atendimento — o
+    WhatsApp, a superfície que mais importa vigiar — nunca apareceriam, porque
+    elas não passam por MCP nenhum. Entram no log toda escrita e toda recusa
+    por autoridade; leitura bem-sucedida fica de fora, senão o sinal
+    desaparece no volume. O log guarda um hash de rota + `Idempotency-Key` —
+    nunca o corpo, nunca um valor: um registro de auditoria que vaza é um
+    vazamento a mais, não a menos.
+  - **`credenciais:admin` não é delegável por API.** Uma credencial capaz de
+    emitir outra sobrevive à própria revogação, e a revogação é a única defesa
+    contra um token vazado. Concedê-lo é ato de quem administra o servidor.
 
 ---
 

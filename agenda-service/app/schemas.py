@@ -113,6 +113,14 @@ class ResourceOut(BaseModel):
     ativo: bool
 
 
+class ResourcePatch(BaseModel):
+    """Alteração parcial: só os campos enviados mudam."""
+
+    nome: str | None = Field(default=None, min_length=1)
+    tipo: str | None = None
+    ativo: bool | None = None
+
+
 # ── Grade ────────────────────────────────────────────────────────────────────
 
 
@@ -145,6 +153,48 @@ class RulePatch(BaseModel):
 class RuleOut(RuleIn):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+
+
+class JanelaSemana(BaseModel):
+    """Uma janela de trabalho, sem id: na definição declarativa a grade é
+    descrita inteira, não remendada janela a janela."""
+
+    dia_semana: int = Field(ge=0, le=6, description="0=segunda … 6=domingo")
+    hora_inicio: time
+    hora_fim: time
+
+
+class GradeSemanaIn(BaseModel):
+    """A semana inteira de um recurso, como ela deve ficar.
+
+    Declarativo em vez de CRUD por um motivo prático: quando um agente
+    precisa listar, remover uma, criar duas e não esquecer nenhuma, ele erra.
+    Aqui ele descreve o resultado e o servidor faz a diferença — atômico.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "janelas": [
+                        {"dia_semana": 0, "hora_inicio": "09:00", "hora_fim": "12:00"},
+                        {"dia_semana": 0, "hora_inicio": "13:00", "hora_fim": "18:00"},
+                        {"dia_semana": 1, "hora_inicio": "09:00", "hora_fim": "18:00"},
+                    ]
+                }
+            ]
+        }
+    )
+
+    janelas: list[JanelaSemana] = Field(
+        description="A semana como deve ficar. Lista vazia limpa a grade do recurso."
+    )
+
+
+class GradeSemanaOut(BaseModel):
+    resource_id: UUID
+    janelas: list[RuleOut]
+    removidas: int = Field(description="Quantas janelas anteriores foram substituídas")
 
 
 class BlockIn(BaseModel):
@@ -473,6 +523,67 @@ class QuemSouOut(BaseModel):
     titular: str | None = Field(
         default=None,
         description="Cliente em nome de quem a credencial age; ausente em credencial administrativa",
+    )
+
+
+class CredencialIn(BaseModel):
+    """Emissão de credencial de agente. Só quem tem `credenciais:admin`."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"nome": "Copiloto da recepção", "papel": "operacao"},
+                {
+                    "nome": "Bot do Telegram",
+                    "papel": "atendimento",
+                    "escopos": ["agenda:read", "agenda:write"],
+                },
+            ]
+        }
+    )
+
+    nome: str = Field(min_length=1, description="Como esta credencial aparece na tela e no log")
+    papel: str = Field(description="atendimento | operacao | administrativo")
+    escopos: list[str] | None = Field(
+        default=None,
+        description=(
+            "Ajuste fino. Ausente, usa os escopos do papel. O papel é só o preset — "
+            "quem manda é esta lista."
+        ),
+    )
+
+
+class CredencialOut(BaseModel):
+    """A credencial como ela aparece na gestão. **Nunca** traz o token."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    nome: str
+    papel: str
+    escopos: list[str]
+    prefixo: str = Field(description="Primeiros caracteres do token, só para identificar a linha")
+    ativo: bool
+    criada_em: datetime
+    ultimo_uso_em: datetime | None = Field(
+        default=None, description="Atualizado no máximo a cada 5 min, para não contender na linha"
+    )
+    revogada_em: datetime | None = None
+
+
+class CredencialCriadaOut(CredencialOut):
+    token: str = Field(
+        description=(
+            "O token em claro. Aparece UMA vez, nesta resposta: o banco guarda só o "
+            "SHA-256. Perdeu, emita outra e revogue esta."
+        )
+    )
+
+
+class RevogacaoOut(BaseModel):
+    id: UUID
+    revogada: bool = Field(description="false = já estava revogada (revogar é idempotente)")
+    aviso: str = Field(
+        description="A revogação leva até o TTL do cache de credenciais para valer em todo processo"
     )
 
 

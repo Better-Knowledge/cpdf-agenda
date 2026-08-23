@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from scalar_fastapi import get_scalar_api_reference
 
+from .auditoria import Auditoria
 from .config import settings
 from .errors import instalar_handlers
 from .jobs import criar_scheduler
@@ -69,10 +70,27 @@ Agendamento operado por conversa: slots, agendamento sem double-booking
 
 ## Autenticação e escopos
 
-`Authorization: Bearer <jwt do Supabase>` (humanos/UI) ou `X-Agent-Key`
-(agentes — fase 1 do conector). Escopos: `agenda:read` (consultar),
-`agenda:write` (criar/alterar), `agenda:cancel` (cancelar). Cada rota declara
-o escopo que exige.
+`Authorization: Bearer <token>` — `agk_…` (credencial de agente, revogável),
+`ats_…` (sessão de atendimento, cunhada pelo canal) ou JWT do Supabase
+(humanos/UI). `X-Agent-Key` é o caminho legado da UI.
+
+**Autenticar não concede tudo.** Cada rota declara o escopo que exige, e é o
+mesmo cobrado em execução:
+
+| Escopo | Cobre |
+|---|---|
+| `agenda:read` | catálogo, horários livres, grade, o **próprio** compromisso |
+| `agenda:write` | agendar, remarcar, confirmar, fila — para **um** cliente |
+| `agenda:cancel` | cancelar um compromisso |
+| `agenda:operacao` | o dia inteiro, todos os compromissos, a fila completa, faltas |
+| `agenda:admin` | serviços, recursos, grade e bloqueios |
+| `canal:admin` | driver, credenciais do canal, templates, opt-outs |
+| `credenciais:admin` | emitir e revogar credenciais — nunca num preset de agente |
+
+Uma credencial de **atendimento** (o bot do canal) carrega ainda um
+`titular`: ela alcança só o compromisso do cliente daquela conversa, e
+compromisso de terceiro responde 404. Consulte `GET /credenciais/eu` para
+descobrir a própria autoridade antes de tentar uma ação.
 """
 
 TAGS = [
@@ -135,6 +153,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Mais externo de propósito: precisa ver o status final da resposta, inclusive
+# o que os exception handlers produzem.
+app.add_middleware(Auditoria)
+
 instalar_handlers(app)
 app.include_router(health.router)
 app.include_router(services.router)
@@ -173,8 +195,10 @@ def openapi_contrato():
             "in": "header",
             "name": "X-Agent-Key",
             "description": (
-                "Chave estática de agente (fase 1 do conector — vira OAuth 2.1 no "
-                "agenda-mcp). Ações irreversíveis pedem confirmação humana."
+                "Chave estática de agente (caminho legado da UI — resolve em "
+                "`agent_credentials` primeiro). Prefira `Authorization: Bearer agk_…`, "
+                "que é revogável e tem escopos próprios. Ações irreversíveis pedem "
+                "confirmação humana."
             ),
         },
     }

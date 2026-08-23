@@ -225,6 +225,19 @@ def _da_sessao_atendimento(token: str) -> Credencial:
 
 
 def credencial_atual(request: Request) -> Credencial:
+    """Resolve a credencial e a deixa em `request.state` para a auditoria.
+
+    O middleware de auditoria roda fora do ciclo de dependências e não tem
+    como pedir esta função de novo (resolver duas vezes custaria uma ida ao
+    banco por requisição). Deixar aqui é o único ponto em que a credencial
+    existe com certeza.
+    """
+    cred = _resolver_da_requisicao(request)
+    request.state.credencial = cred
+    return cred
+
+
+def _resolver_da_requisicao(request: Request) -> Credencial:
     cfg = settings()
 
     auth = request.headers.get("Authorization", "")

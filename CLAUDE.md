@@ -38,8 +38,15 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   concede tudo. Agente de atendimento (canal) e agente administrativo (MCP) têm
   escopos diferentes, e `exigir_escopo` de fato barra. O escopo declarado no
   OpenAPI é o mesmo cobrado em execução — não deixe divergir.
-- **`credenciais:admin` nunca entra em preset de credencial de agente**: só
-  humano por JWT emite credencial. Emitir não é rota — é `make credencial`.
+- **`credenciais:admin` nunca entra em preset de credencial de agente** e
+  **não é delegável por rota** (`POST /credenciais` recusa com
+  `ESCOPO_NAO_DELEGAVEL`): um token que emite tokens sobrevive à própria
+  revogação. A primeira credencial da org nasce em `make credencial`; a gestão
+  do dia a dia é por rota e pela tela T-11.
+- **Auditoria mora no agenda-service, não no conector MCP** (`00` §5.8): no
+  conector, as ações do agente de atendimento — que não passa por MCP — não
+  seriam vistas. Entram escritas e recusas por autoridade; leitura bem-sucedida
+  não entra. `args_hash` cobre rota + `Idempotency-Key`, nunca o corpo.
 - **O titular é cunhado onde o endereço é provado** (RF-19): dentro do
   `canal-service`, depois do `compare_digest` do token de webhook, e viaja
   assinado (`ats_…`, HMAC, 30 min). Nenhum serviço declara por quem age —
