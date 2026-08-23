@@ -1,4 +1,4 @@
-.PHONY: dev-db migrate migrate-canal test test-agenda test-canal lint openapi up down
+.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente lint openapi up down
 
 dev-db:            ## sobe Postgres local de desenvolvimento
 	docker compose --profile dev up -d db
@@ -9,7 +9,7 @@ migrate:           ## aplica migrations do agenda-service
 migrate-canal:     ## aplica migrations do canal-service
 	cd canal-service && uv run alembic upgrade head
 
-test: test-agenda test-canal
+test: test-agenda test-canal test-agente
 
 test-agenda:
 	cd agenda-service && uv run pytest -q
@@ -17,9 +17,13 @@ test-agenda:
 test-canal:
 	cd canal-service && uv run pytest -q
 
+test-agente:       ## agente do inbound — roda sem banco
+	cd agente-service && uv run pytest -q
+
 lint:
 	cd agenda-service && uv run ruff check app tests
 	cd canal-service && uv run ruff check app tests
+	cd agente-service && uv run ruff check app tests
 
 openapi:           ## exporta o contrato para docs/openapi.json (RF-17)
 	cd agenda-service && uv run python scripts/exportar_openapi.py

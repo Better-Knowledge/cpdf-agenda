@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # exigiria expor /webhooks/canal/* publicamente (etapa da demo Z-API).
     webhook_base_url: str = "http://canal-service:8000"
 
+    # Para onde o inbound normalizado segue (PRD §9.1): o agente/orquestrador.
+    # Vazio = só registra (comportamento anterior). O canal não pensa — entrega.
+    orquestrador_url: str = ""
+    orquestrador_key: str = ""
+
     @property
     def dev_mode(self) -> bool:
         return self.app_env != "prod"

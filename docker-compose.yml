@@ -19,6 +19,14 @@ services:
     # e o webhook inbound volta por ela (o canal nunca é exposto à internet).
     networks: [interna, evolution]
 
+  # Orquestrador do inbound (IA-04): recebe do canal, age pela API da agenda.
+  # Nunca exposto — só o canal-service o alcança, pela rede interna.
+  agente-service:
+    build: ./agente-service
+    env_file: .env
+    restart: unless-stopped
+    networks: [interna]
+
   web:
     build: ./web
     restart: unless-stopped

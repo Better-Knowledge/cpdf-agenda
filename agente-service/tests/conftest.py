@@ -1,0 +1,63 @@
+import os
+
+os.environ.setdefault("APP_ENV", "dev")
+os.environ.setdefault("AGENTE_SERVICE_KEY", "chave-do-agente-teste")
+os.environ.setdefault("ANTHROPIC_API_KEY", "")  # testes não chamam LLM de verdade
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def sem_memoria_entre_testes():
+    """O contador do fallback em duas etapas é global — zera entre testes."""
+    from app.fluxo import _TENTATIVAS
+
+    _TENTATIVAS.clear()
+    yield
+    _TENTATIVAS.clear()
+
+
+@pytest.fixture()
+def agenda_falsa(monkeypatch):
+    """Substitui as chamadas HTTP por respostas controladas e registra o que
+    o agente tentou fazer — é assim que verificamos que ele não inventou
+    caminho fora da API."""
+    from app import clientes
+
+    class Falsa:
+        def __init__(self):
+            self.compromisso: dict | None = None
+            self.slots: list[dict] = []
+            self.chamadas: list[tuple[str, str]] = []
+            self.respostas: list[str] = []
+
+        def agenda(self, metodo, rota, org_id, corpo=None):
+            self.chamadas.append((metodo, rota))
+            if rota.startswith("/appointments/proximo"):
+                return (200, self.compromisso) if self.compromisso else (404, {"code": "NAO_ENCONTRADO"})
+            if rota.startswith("/slots"):
+                return 200, self.slots
+            if rota.endswith("/confirm"):
+                return 200, {**(self.compromisso or {}), "status": "confirmado"}
+            return 200, {}
+
+        def responder(self, org_id, telefone, texto):
+            self.respostas.append(texto)
+
+    falsa = Falsa()
+    monkeypatch.setattr(clientes, "agenda", falsa.agenda)
+    monkeypatch.setattr(clientes, "responder", falsa.responder)
+    import app.fluxo as fluxo
+
+    monkeypatch.setattr(fluxo.clientes, "agenda", falsa.agenda)
+    monkeypatch.setattr(fluxo.clientes, "responder", falsa.responder)
+    return falsa
+
+
+COMPROMISSO = {
+    "id": "0b6ff65e-4f2a-4c8d-9e1b-3a5c7d9f0e2a",
+    "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+    "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+    "label_humano": "quinta, 27 de agosto, 15h30",
+    "status": "agendado",
+}
