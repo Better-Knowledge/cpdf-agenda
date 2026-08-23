@@ -1182,14 +1182,20 @@ o *confused deputy* que o RF-18 eliminou.
 | `agenda_admin_catalogo` | `agenda:read` | serviços **e** recursos numa chamada |
 | `agenda_admin_servico_salvar` | `agenda:admin` | cria ou altera (id opcional) |
 | `agenda_admin_recurso_salvar` | `agenda:admin` | cria ou altera uma **agenda** |
-| `agenda_admin_grade_ver` | `agenda:operacao` | janelas e bloqueios do recurso |
+| `agenda_admin_grade_ver` | `agenda:read` | as janelas semanais de um recurso (ou de todos) |
 | `agenda_admin_grade_definir` | `agenda:admin` | **declarativa**: substitui a semana inteira |
 | `agenda_admin_bloqueio_criar` | `agenda:admin` | férias, feriado, imprevisto |
 | `agenda_admin_bloqueio_remover` | `agenda:admin` | |
-| `agenda_admin_dia` | `agenda:operacao` | os apontamentos de um dia, narrados |
+| `agenda_admin_dia` | `agenda:operacao` | os apontamentos de um dia, narrados, **mais os bloqueios vigentes** |
 | `agenda_admin_fila` | `agenda:operacao` | quem espera, posição e ofertas |
 | `agenda_admin_cancelar` | `agenda:cancel` | elicitation antes de executar |
 | `agenda_admin_credenciais_listar` | `credenciais:admin` | **só leitura** — emitir nunca é tool |
+
+> **Por que a grade se lê com `agenda:read` e o dia com `agenda:operacao`.** A
+> grade é regra de funcionamento — "atendemos terça das 9h às 18h" — e está no
+> mesmo plano dos horários livres que qualquer cliente enxerga. O dia é quem
+> vem, a que horas e com que risco de faltar: dado de pessoa. O escopo segue o
+> conteúdo, não a tela em que ele costuma aparecer.
 
 > **Por que `grade_definir` é declarativa.** A alternativa (listar → remover uma
 > → criar duas) é justamente a sequência em que o modelo erra: esquece um
@@ -1203,7 +1209,10 @@ o *confused deputy* que o RF-18 eliminou.
 - Emitir credencial **não é tool**: `agenda_admin_credenciais_listar` só lê.
 - `agenda_admin_cancelar` usa elicitation; onde o cliente não suportar, cai no
   `confirmation_token` que a API já emite.
-- Toda tool call vira uma linha em `agent_audit_log`.
+- Toda tool call vira uma linha em `agent_audit_log` **com o nome da tool**,
+  não com o método e a rota: a pergunta "o que o agente fez" respondida no
+  vocabulário de quem chamou. Os headers `X-MCP-Server`/`X-MCP-Tool` são o que
+  carrega isso até a agenda, onde a auditoria vive (§13).
 - Aceite de aula: criar uma agenda nova (recurso + grade da semana) e conferir
   o resultado na tela T-02, **inteiramente por conversa**.
 
@@ -1265,7 +1274,7 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 | 6 | **`canal-service`**: drivers Telegram + Evolution + Z-API, templates, inbound, opt-out |
 | 7 | Job de lembretes via canal + espelho no Gestor de Tarefas + **fila de espera** (RF-14) |
 | 8 | **Google Calendar: push + busy-read** (RF-12) + feed .ics (RF-11) + **link público** (RF-13) + webhook Calendly (RF-16) |
-| 9 | **Papéis, escopos e credenciais** (RF-18) + **isolamento do atendimento** (RF-19) + **`agenda-admin-mcp`** (§14.5) — a equipe operando por conversa |
+| 9 | **Papéis, escopos e credenciais** (RF-18) + **isolamento do atendimento** (RF-19) + superfície administrativa e auditoria + **`agenda-admin-mcp`** (§14.5) — a equipe operando por conversa |
 | 10 | **Conector MCP `agenda-mcp`** de atendimento (§14.1–14.4) + linguagem natural de datas + **demo final** |
 
 As **telas (§12) nascem junto com a etapa da sua rota, nunca antes** — é o

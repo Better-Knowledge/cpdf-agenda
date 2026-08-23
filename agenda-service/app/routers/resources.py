@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,18 +18,24 @@ router = APIRouter(tags=["catálogo"])
 @router.get(
     "/resources",
     response_model=Pagina[ResourceOut],
-    summary="Lista profissionais, salas e equipamentos ativos",
+    summary="Lista profissionais, salas e equipamentos",
+    description=(
+        "Ativos por padrão. `ativo=false` lista os desativados — é como se acha o id "
+        "de um recurso para reativar, sem o qual desativar seria caminho só de ida."
+    ),
     responses=respostas(),
     openapi_extra=operacao("agenda:read"),
 )
 def listar_resources(
+    ativo: bool | None = Query(default=True, description="null (sem o parâmetro não vale) traz todos"),
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> Pagina[ResourceOut]:
     exigir_escopo(cred, "agenda:read")
-    linhas = db.scalars(
-        select(Resource).where(Resource.org_id == cred.org_id, Resource.ativo).order_by(Resource.nome)
-    ).all()
+    q = select(Resource).where(Resource.org_id == cred.org_id)
+    if ativo is not None:
+        q = q.where(Resource.ativo == ativo)
+    linhas = db.scalars(q.order_by(Resource.nome)).all()
     return Pagina(items=[ResourceOut.model_validate(r) for r in linhas])
 
 

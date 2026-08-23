@@ -27,6 +27,18 @@ services:
     restart: unless-stopped
     networks: [interna]
 
+  # Conector MCP administrativo (PRD §14.5). Sem credencial própria: repassa o
+  # bearer de quem chamou. Alcança a agenda só pela rede interna.
+  agenda-admin-mcp:
+    build: ./agenda-admin-mcp
+    env_file: .env
+    environment:
+      AGENDA_SERVICE_URL: http://agenda-service:8000
+    depends_on:
+      - agenda-service
+    restart: unless-stopped
+    networks: [interna]
+
   web:
     build: ./web
     restart: unless-stopped

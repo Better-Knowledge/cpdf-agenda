@@ -155,9 +155,15 @@ def _posicao(db: Session, entrada: WaitlistEntry) -> int | None:
     "/waitlist",
     response_model=list[WaitlistOut],
     summary="Fila de espera da organização, na ordem de chegada",
-    description="Por padrão mostra quem ainda espera (aguardando/ofertado). A posição é por serviço.",
+    description=(
+        "Por padrão mostra quem ainda espera (aguardando/ofertado). A posição é por "
+        "serviço. **A fila inteira exige `agenda:operacao`** — ela é nome, telefone e "
+        "janela desejada de todo mundo que espera, a mesma classe de dado de "
+        "`GET /appointments?date=`. Numa sessão de atendimento (`agenda:read` com "
+        "titular) a resposta traz apenas a entrada daquele cliente."
+    ),
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("agenda:read (própria) | agenda:operacao (a fila toda)"),
 )
 def listar(
     service_id: UUID | None = Query(default=None),
@@ -166,15 +172,21 @@ def listar(
     db: Session = Depends(get_db),
 ) -> list[WaitlistOut]:
     exigir_escopo(cred, "agenda:read")
+    if not cred.titular:
+        # Sem titular, "a fila" é a fila de todo mundo: nome, telefone e janela
+        # desejada de cada pessoa que espera. É a mesma classe de dado que fez
+        # `GET /appointments?date=` exigir `agenda:operacao` — deixá-la em
+        # `agenda:read` era uma porta que o isolamento por titular não fechava,
+        # porque um bearer de atendimento sem sessão passa por ela.
+        exigir_escopo(cred, ESCOPO_OPERACAO)
     fila.expirar_ofertas_vencidas(db, cred.org_id)
     db.commit()
 
     q = select(WaitlistEntry).where(WaitlistEntry.org_id == cred.org_id)
     if cred.titular:
-        # A fila inteira é nome + telefone + horário de todo mundo que espera.
-        # O agente de atendimento recebe só a própria linha — e por vir
-        # filtrado da API, o cliente do outro lado não precisa lembrar de
-        # filtrar (era esse esquecimento que vazava a fila no fluxo do agente).
+        # O agente de atendimento recebe só a própria linha — e por vir filtrado
+        # da API, o cliente do outro lado não precisa lembrar de filtrar (era
+        # esse esquecimento que vazava a fila no fluxo do agente).
         q = q.where(WaitlistEntry.cliente_telefone == enderecos.normalizar(cred.titular))
     if service_id:
         q = q.where(WaitlistEntry.service_id == service_id)

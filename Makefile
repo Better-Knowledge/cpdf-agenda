@@ -1,4 +1,4 @@
-.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente lint openapi credencial credenciais up down
+.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente test-mcp lint openapi credencial credenciais mcp-dev up down
 
 dev-db:            ## sobe Postgres local de desenvolvimento
 	docker compose --profile dev up -d db
@@ -9,7 +9,7 @@ migrate:           ## aplica migrations do agenda-service
 migrate-canal:     ## aplica migrations do canal-service
 	cd canal-service && uv run alembic upgrade head
 
-test: test-agenda test-canal test-agente
+test: test-agenda test-canal test-agente test-mcp
 
 test-agenda:
 	cd agenda-service && uv run pytest -q
@@ -20,10 +20,14 @@ test-canal:
 test-agente:       ## agente do inbound — roda sem banco
 	cd agente-service && uv run pytest -q
 
+test-mcp:          ## conector MCP administrativo — roda sem banco
+	cd agenda-admin-mcp && uv run pytest -q
+
 lint:
 	cd agenda-service && uv run ruff check app tests
 	cd canal-service && uv run ruff check app tests
 	cd agente-service && uv run ruff check app tests
+	cd agenda-admin-mcp && uv run ruff check app tests
 
 openapi:           ## exporta o contrato para docs/openapi.json (RF-17)
 	cd agenda-service && uv run python scripts/exportar_openapi.py
@@ -33,6 +37,9 @@ credencial:        ## emite credencial de agente: make credencial ORG=<uuid> NOM
 
 credenciais:       ## lista as credenciais de uma org: make credenciais ORG=<uuid>
 	cd agenda-service && uv run python -m app.admin_cli listar "$(ORG)"
+
+mcp-dev:           ## conector MCP em http://127.0.0.1:8100/mcp (para o MCP Inspector)
+	cd agenda-admin-mcp && APP_ENV=dev uv run uvicorn app.main:app --port 8100
 
 web-dev:           ## UI em modo dev (proxy para a API local)
 	cd web && npm install && npm run dev

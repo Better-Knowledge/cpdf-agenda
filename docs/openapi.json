@@ -604,8 +604,30 @@
         "tags": [
           "catálogo"
         ],
-        "summary": "Lista profissionais, salas e equipamentos ativos",
+        "summary": "Lista profissionais, salas e equipamentos",
+        "description": "**Escopo:** `agenda:read`\n\nAtivos por padrão. `ativo=false` lista os desativados — é como se acha o id de um recurso para reativar, sem o qual desativar seria caminho só de ida.",
         "operationId": "listar_resources_resources_get",
+        "parameters": [
+          {
+            "name": "ativo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "null (sem o parâmetro não vale) traz todos",
+              "default": true,
+              "title": "Ativo"
+            },
+            "description": "null (sem o parâmetro não vale) traz todos"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -690,8 +712,7 @@
             }
           }
         },
-        "x-escopo-requerido": "agenda:read",
-        "description": "**Escopo:** `agenda:read`"
+        "x-escopo-requerido": "agenda:read"
       },
       "post": {
         "tags": [
@@ -4274,7 +4295,7 @@
           "fila de espera"
         ],
         "summary": "Fila de espera da organização, na ordem de chegada",
-        "description": "**Escopo:** `agenda:read`\n\nPor padrão mostra quem ainda espera (aguardando/ofertado). A posição é por serviço.",
+        "description": "**Escopo:** `agenda:read (própria) | agenda:operacao (a fila toda)`\n\nPor padrão mostra quem ainda espera (aguardando/ofertado). A posição é por serviço. **A fila inteira exige `agenda:operacao`** — ela é nome, telefone e janela desejada de todo mundo que espera, a mesma classe de dado de `GET /appointments?date=`. Numa sessão de atendimento (`agenda:read` com titular) a resposta traz apenas a entrada daquele cliente.",
         "operationId": "listar_waitlist_get",
         "parameters": [
           {
@@ -4416,7 +4437,7 @@
             }
           }
         },
-        "x-escopo-requerido": "agenda:read"
+        "x-escopo-requerido": "agenda:read (própria) | agenda:operacao (a fila toda)"
       }
     },
     "/waitlist/{entry_id}": {
