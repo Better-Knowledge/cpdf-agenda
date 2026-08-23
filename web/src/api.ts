@@ -120,6 +120,36 @@ export interface Bloqueio {
   motivo: string | null;
 }
 
+export interface CanalConfig {
+  configurado: boolean;
+  driver: string | null;
+  numero: string | null;
+  instancia: string | null;
+  ativo: boolean;
+  webhook_url: string | null;
+}
+
+export interface CanalConexao {
+  estado: "conectado" | "aguardando_qr" | "desconectado" | "desconhecido";
+  qr_base64: string | null;
+  detalhe: string | null;
+}
+
+export interface CanalTemplate {
+  id: string;
+  nome: string;
+  corpo: string;
+  versao: number;
+  aprovado_meta: boolean;
+  ativo: boolean;
+}
+
+export interface CanalOptout {
+  telefone: string;
+  origem: string | null;
+  em: string;
+}
+
 export interface Historico {
   acao: string;
   de: string | null;

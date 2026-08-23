@@ -13,9 +13,29 @@ from ..drivers.base import ErroDriver
 from ..drivers.registry import obter_driver
 from ..errors import ApiError
 from ..models import ChannelConfig, ChannelMessage, ChannelOptout, ChannelTemplate
-from ..schemas import ConfigIn, EnviarIn, EnviarOut, MensagemOut, TemplateIn, TemplateOut
+from ..schemas import (
+    ConexaoOut,
+    ConfigIn,
+    ConfigOut,
+    EnviarIn,
+    EnviarOut,
+    MensagemOut,
+    OptoutOut,
+    TemplateIn,
+    TemplateOut,
+)
 
 router = APIRouter(tags=["canal"])
+
+
+def _webhook_url(config: ChannelConfig) -> str:
+    base = settings().webhook_base_url.rstrip("/")
+    return f"{base}/webhooks/canal/{config.driver}?token={config.webhook_token}"
+
+
+def _credenciais(config: ChannelConfig) -> dict:
+    # A instância da config é a fonte de verdade — sobrepõe a das credenciais.
+    return {**crypto.decifrar(config.credenciais), "instancia": config.instancia}
 
 
 def _config(db: Session, org_id) -> ChannelConfig:
@@ -155,7 +175,7 @@ def enviar(
     db.flush()
 
     driver = obter_driver(config.driver)
-    credenciais = crypto.decifrar(config.credenciais)
+    credenciais = _credenciais(config)
     try:
         if dados.tipo == "template" and not driver.suporta_texto_livre_ativo:
             resultado = driver.enviar_template_oficial(
@@ -297,5 +317,111 @@ def configurar(
         "driver": config.driver,
         "numero": config.numero,
         "ativo": True,
-        "webhook_url": f"/webhooks/canal/{config.driver}?token={config.webhook_token}",
+        "webhook_url": _webhook_url(config),
     }
+
+
+@router.get(
+    "/canal/config",
+    response_model=ConfigOut,
+    summary="Configuração vigente do canal (sem credenciais)",
+    description="Credenciais são write-only e nunca voltam. `webhook_url` carrega o segredo do webhook — trate como sensível.",
+)
+def ler_config(
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> ConfigOut:
+    config = db.get(ChannelConfig, chamador.org_id)
+    if config is None:
+        return ConfigOut(configurado=False)
+    return ConfigOut(
+        configurado=True,
+        driver=config.driver,
+        numero=config.numero,
+        instancia=config.instancia,
+        ativo=config.ativo,
+        webhook_url=_webhook_url(config),
+    )
+
+
+def _estado(config: ChannelConfig, acao) -> ConexaoOut:
+    try:
+        estado = acao()
+    except ErroDriver as e:
+        raise ApiError(
+            code="FALHA_NO_DRIVER",
+            message=f"O driver {config.driver} não respondeu à operação de conexão.",
+            hint=str(e),
+            retryable=e.retryable,
+            status_code=502,
+        ) from e
+    return ConexaoOut(estado=estado.estado, qr_base64=estado.qr_base64, detalhe=estado.detalhe)
+
+
+@router.post(
+    "/canal/conectar",
+    response_model=ConexaoOut,
+    summary="Cria/conecta a instância no driver e devolve o QR code",
+    description=(
+        "Garante a instância no servidor do driver, aponta o webhook do inbound para "
+        "o canal e devolve o QR (data URI) quando falta parear o aparelho. Só drivers "
+        "self-host (Evolution) suportam — nos demais a conexão é no painel do fornecedor."
+    ),
+)
+def conectar(
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> ConexaoOut:
+    config = _config(db, chamador.org_id)
+    driver = obter_driver(config.driver)
+    return _estado(config, lambda: driver.conectar(_credenciais(config), _webhook_url(config)))
+
+
+@router.get(
+    "/canal/status",
+    response_model=ConexaoOut,
+    summary="Estado da conexão instância ↔ WhatsApp",
+)
+def status_conexao(
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> ConexaoOut:
+    config = _config(db, chamador.org_id)
+    driver = obter_driver(config.driver)
+    return _estado(config, lambda: driver.estado_conexao(_credenciais(config)))
+
+
+@router.get(
+    "/canal/optouts",
+    response_model=list[OptoutOut],
+    summary="Clientes que pediram para não receber mensagem ativa",
+)
+def listar_optouts(
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> list[OptoutOut]:
+    linhas = db.scalars(
+        select(ChannelOptout)
+        .where(ChannelOptout.org_id == chamador.org_id)
+        .order_by(ChannelOptout.em.desc())
+    ).all()
+    return [
+        OptoutOut(telefone=o.telefone, origem=o.origem, em=o.em.isoformat()) for o in linhas
+    ]
+
+
+@router.delete(
+    "/canal/optouts/{telefone}",
+    summary="Remove um opt-out (reativa mensagens ativas para o telefone)",
+    description="Só com pedido explícito do cliente ao humano. Idempotente.",
+)
+def remover_optout(
+    telefone: str,
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> dict:
+    registro = db.get(ChannelOptout, (chamador.org_id, telefone))
+    if registro:
+        db.delete(registro)
+        db.commit()
+    return {"telefone": telefone, "removido": registro is not None}

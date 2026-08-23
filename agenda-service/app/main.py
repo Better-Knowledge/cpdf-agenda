@@ -19,6 +19,7 @@ from .jobs import criar_scheduler
 from .routers import (
     appointments,
     availability,
+    canal,
     health,
     recorrencia,
     resources,
@@ -94,11 +95,19 @@ TAGS = [
         "name": "recorrência",
         "description": "Séries semanais/quinzenais (RF-15). Cada ocorrência é um compromisso próprio ligado ao `series_id`.",
     },
+    {
+        "name": "canal",
+        "description": (
+            "Canal de WhatsApp (T-09), por procuração: a UI fala com o agenda-service e "
+            "ele repassa ao canal-service — que nunca é exposto ao navegador. "
+            "Credenciais de driver são write-only."
+        ),
+    },
 ]
 
 app = FastAPI(
     title="Agenda Inteligente — agenda-service",
-    version="0.2.0",
+    version="0.3.0",
     description=DESCRICAO,
     openapi_tags=TAGS,
     servers=[{"url": "https://cpdf-agenda.better-knowledge.com", "description": "Protótipo do programa"}],
@@ -115,6 +124,7 @@ app.include_router(availability.router)
 app.include_router(slots.router)
 app.include_router(appointments.router)
 app.include_router(recorrencia.router)
+app.include_router(canal.router)
 
 
 def openapi_contrato():

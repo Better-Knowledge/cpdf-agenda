@@ -13,6 +13,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./Layout";
 import { sessao } from "./api";
 import "./estilos.css";
+import { Canal } from "./telas/Canal";
 import { Dia } from "./telas/Dia";
 import { Entrar } from "./telas/Entrar";
 import { Grade } from "./telas/Grade";
@@ -39,6 +40,7 @@ createRoot(document.getElementById("raiz")!).render(
           <Route path="/dia" element={<Dia />} />
           <Route path="/servicos" element={<Servicos />} />
           <Route path="/grade" element={<Grade />} />
+          <Route path="/canal" element={<Canal />} />
         </Route>
       </Routes>
     </BrowserRouter>

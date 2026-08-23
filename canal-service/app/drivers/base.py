@@ -30,6 +30,15 @@ class MensagemInbound:
     timestamp: datetime | None = None
 
 
+@dataclass(frozen=True)
+class EstadoConexao:
+    """Estado do vínculo instância ↔ WhatsApp, normalizado entre drivers."""
+
+    estado: str  # conectado | aguardando_qr | desconectado | desconhecido
+    qr_base64: str | None = None  # data URI do QR, presente quando aguardando_qr
+    detalhe: str | None = None  # texto livre do driver, para diagnóstico
+
+
 class DriverCanal(ABC):
     nome: str
     suporta_texto_livre_ativo: bool
@@ -54,6 +63,24 @@ class DriverCanal(ABC):
     def normalizar_inbound(self, payload: dict[str, Any]) -> MensagemInbound | None:
         """Webhook cru do driver → mensagem normalizada. None = evento sem texto
         (status de entrega, mídia não tratada, etc.)."""
+
+    # Ciclo de vida da instância: só drivers self-host (Evolution) o suportam
+    # pela API do canal — nos demais a conexão é feita no painel do fornecedor.
+
+    def conectar(self, credenciais: dict[str, Any], webhook_url: str) -> EstadoConexao:
+        """Garante a instância no servidor do driver, aponta o webhook para o
+        canal e devolve o estado (com QR quando falta parear)."""
+        raise ErroDriver(
+            f"o driver {self.nome} conecta pelo painel do fornecedor, não pela API",
+            retryable=False,
+        )
+
+    def estado_conexao(self, credenciais: dict[str, Any]) -> EstadoConexao:
+        """Consulta o estado atual da instância no driver."""
+        raise ErroDriver(
+            f"o driver {self.nome} não expõe estado de conexão pela API do canal",
+            retryable=False,
+        )
 
 
 class ErroDriver(Exception):

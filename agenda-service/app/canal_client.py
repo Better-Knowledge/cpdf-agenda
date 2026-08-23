@@ -16,6 +16,28 @@ class CanalIndisponivel(Exception):
     pass
 
 
+def chamar(
+    metodo: str, rota: str, *, org_id: UUID, corpo: Any | None = None
+) -> tuple[int, Any]:
+    """Chamada service-to-service genérica ao canal (usada pelo proxy da UI).
+
+    Devolve (status, payload) — erros do canal já vêm no contrato
+    {code, message, hint, retryable} e sobem intactos para o chamador.
+    """
+    cfg = settings()
+    try:
+        resposta = httpx.request(
+            metodo,
+            f"{cfg.canal_service_url}{rota}",
+            json=corpo,
+            headers={"X-Service-Key": cfg.canal_service_key, "X-Org-Id": str(org_id)},
+            timeout=30,  # conectar cria instância no driver — demora alguns segundos
+        )
+    except httpx.HTTPError as e:
+        raise CanalIndisponivel(str(e)) from e
+    return resposta.status_code, resposta.json()
+
+
 def enviar_template(
     *,
     org_id: UUID,
