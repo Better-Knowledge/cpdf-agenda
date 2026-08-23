@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Contrato único de erro do programa: {code, message, hint, retryable}.
 
 O `hint` é escrito para o agente ler e agir — quando possível, já traz a

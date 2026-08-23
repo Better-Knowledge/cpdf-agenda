@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 // A UI é o segundo cliente da API (PRD §12): toda ação daqui existe antes
 // como rota autenticada — deletar a UI não remove capacidade nenhuma.
 // Fase 1 do conector: chave de acesso (X-Agent-Key) guardada no navegador.
@@ -59,6 +62,7 @@ export const api = {
   get: <T>(rota: string) => chamar<T>("GET", rota),
   post: <T>(rota: string, corpo?: unknown) => chamar<T>("POST", rota, corpo),
   patch: <T>(rota: string, corpo: unknown) => chamar<T>("PATCH", rota, corpo),
+  put: <T>(rota: string, corpo: unknown) => chamar<T>("PUT", rota, corpo),
   delete: <T>(rota: string) => chamar<T>("DELETE", rota),
 };
 
@@ -241,4 +245,115 @@ export function mudarDia(dataISO: string, dias: number): string {
   const d = new Date(`${dataISO}T12:00:00-03:00`);
   d.setDate(d.getDate() + dias);
   return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(d);
+}
+
+// ── Integrações de calendário e link público (etapa 8) ──────────────────────
+
+export interface FeedIcs {
+  id: string;
+  resource_id: string | null;
+  modo: "completo" | "privado";
+  url: string; // redigida
+  revogado_em: string | null;
+  created_at: string;
+}
+
+export interface FeedIcsCriado extends FeedIcs {
+  url_completa: string;
+}
+
+export interface ConexaoGoogle {
+  resource_id: string;
+  resource_nome: string;
+  calendar_id: string;
+  ativo: boolean;
+  precisa_reconectar: boolean;
+  conectado_em: string;
+}
+
+export interface ConfigCalendly {
+  service_id: string;
+  resource_id: string;
+  cria_lembretes: boolean;
+  ativo: boolean;
+  webhook_url: string;
+  created_at: string;
+}
+
+export interface LinkPublico {
+  id: string;
+  service_id: string;
+  resource_id: string | null;
+  slug: string;
+  url: string;
+  ativo: boolean;
+  exige_caucao: boolean;
+  valor_caucao: string | null;
+  created_at: string;
+}
+
+export interface PaginaPublica {
+  slug: string;
+  servico: string;
+  duracao_min: number;
+  preco: string;
+  exige_caucao: boolean;
+  valor_caucao: string | null;
+  aviso_caucao: string | null;
+}
+
+export interface AgendamentoPublico {
+  id: string;
+  servico: string;
+  inicio: string;
+  label_humano: string;
+  mensagem: string;
+}
+
+/** Cliente das rotas públicas (P-01): **sem** chave de acesso.
+ *
+ * Mandar a credencial do prestador de dentro da página que o cliente final
+ * abre seria vazá-la para quem tem o link. A página pública é anônima de
+ * propósito — e a API a trata como tal, com limite por IP. */
+async function chamarPublico<T>(metodo: string, rota: string, corpo?: unknown): Promise<T> {
+  const resposta = await fetch(rota, {
+    method: metodo,
+    headers: corpo === undefined ? {} : { "Content-Type": "application/json" },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  });
+  const dados = await resposta.json().catch(() => ({}));
+  if (!resposta.ok) {
+    throw new ApiError(
+      {
+        ...dados,
+        code: dados.code ?? "ERRO",
+        message: dados.message ?? "Não foi possível falar com a agenda.",
+        hint: dados.hint ?? "",
+        retryable: dados.retryable ?? false,
+      },
+      resposta.status,
+    );
+  }
+  return dados as T;
+}
+
+export const publico = {
+  get: <T>(rota: string) => chamarPublico<T>("GET", rota),
+  post: <T>(rota: string, corpo: unknown) => chamarPublico<T>("POST", rota, corpo),
+};
+
+export interface Metricas {
+  de: string;
+  ate: string;
+  total: number;
+  por_status: Record<string, number>;
+  por_origem: Record<string, number>;
+  pct_por_conversa: number | null;
+  pct_no_show: number | null;
+  pct_confirmados: number | null;
+  pct_ocupacao: number | null;
+  cancelados: number;
+  fila_aguardando: number;
+  fila_atendida: number;
+  narrativa: string;
 }

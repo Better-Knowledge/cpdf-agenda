@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Dependência de sessão do FastAPI — a sessão em si vive em `sessao.py`.
 
 A separação existe porque `auth.py` precisa de uma sessão para resolver a

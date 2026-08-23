@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O cliente HTTP da agenda — e a regra que este serviço existe para não quebrar.
 
 **O conector não tem credencial própria.** Ele repassa, sem tocar, o

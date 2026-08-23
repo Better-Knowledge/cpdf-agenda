@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-17 — o OpenAPI é o contrato executável do módulo.
 
 Aqui vive o que torna o `/docs` auto-suficiente para um agente (ou aluno):
@@ -134,6 +137,92 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
                 "O token de sessão é cunhado pelo canal para o cliente que escreveu. "
                 "Omita `cliente_telefone` ou use o endereço da conversa."
             ),
+            "retryable": False,
+        },
+    ),
+    "OAUTH_ESTADO_INVALIDO": (
+        400,
+        "O state do OAuth não confere",
+        {
+            "code": "OAUTH_ESTADO_INVALIDO",
+            "message": "O state do OAuth é inválido ou expirou.",
+            "hint": "Recomece a conexão pela tela de Integrações — o link vale 10 minutos.",
+            "retryable": False,
+        },
+    ),
+    "GOOGLE_NAO_CONFIGURADO": (
+        409,
+        "Este servidor não tem app OAuth do Google",
+        {
+            "code": "GOOGLE_NAO_CONFIGURADO",
+            "message": "Este servidor não tem app OAuth do Google configurado.",
+            "hint": (
+                "Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no .env do VPS. "
+                "Sem isso, use o feed .ics (POST /ics/tokens), que não exige OAuth."
+            ),
+            "retryable": False,
+        },
+    ),
+    "MUITAS_REQUISICOES": (
+        429,
+        "Limite de requisições por IP na página pública",
+        {
+            "code": "MUITAS_REQUISICOES",
+            "message": "Muitas requisições deste endereço em pouco tempo.",
+            "hint": "Aguarde 40s e tente de novo.",
+            "retryable": True,
+        },
+    ),
+    "DATA_NO_PASSADO": (
+        400,
+        "O horário escolhido já passou",
+        {
+            "code": "DATA_NO_PASSADO",
+            "message": "O horário escolhido já passou.",
+            "hint": "Recarregue a página e escolha um horário na lista de livres.",
+            "retryable": False,
+        },
+    ),
+    "SLUG_INDISPONIVEL": (
+        409,
+        "O endereço do link já está em uso",
+        {
+            "code": "SLUG_INDISPONIVEL",
+            "message": "Não foi possível reservar um endereço para este link.",
+            "hint": "Envie um `slug` diferente no corpo da chamada.",
+            "retryable": False,
+        },
+    ),
+    "ASSINATURA_INVALIDA": (
+        401,
+        "A assinatura do webhook não confere",
+        {
+            "code": "ASSINATURA_INVALIDA",
+            "message": "A assinatura deste webhook não confere com nenhuma integração ativa.",
+            "hint": "Confira a signing key em PUT /integracoes/calendly e o relógio do servidor.",
+            "retryable": False,
+        },
+    ),
+    "TELEFONE_OBRIGATORIO": (
+        400,
+        "A credencial não fala por um cliente específico",
+        {
+            "code": "TELEFONE_OBRIGATORIO",
+            "message": "Informe o telefone do cliente.",
+            "hint": (
+                "Esta credencial não fala por um cliente específico. Passe `telefone`, "
+                "ou use GET /appointments?date= para ver o dia inteiro."
+            ),
+            "retryable": False,
+        },
+    ),
+    "LINK_INATIVO": (
+        409,
+        "O link de auto-agendamento está desativado",
+        {
+            "code": "LINK_INATIVO",
+            "message": "Este link de agendamento está desativado no momento.",
+            "hint": "Fale com o prestador pelo WhatsApp — a conversa continua funcionando.",
             "retryable": False,
         },
     ),
@@ -279,6 +368,7 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
 
 _DESCRICAO_STATUS = {
     400: "Pedido malformado",
+    429: "Excesso de requisições — o hint diz quanto esperar",
     401: "Não autenticado",
     403: "Escopo insuficiente",
     404: "Não encontrado nesta organização",
@@ -302,6 +392,32 @@ def respostas(*codes: str) -> dict[int | str, dict[str, Any]]:
     """
     saida: dict[int | str, dict[str, Any]] = {}
     for code in (*_BASE, *codes):
+        status, resumo, exemplo = CATALOGO[code]
+        resposta = saida.setdefault(
+            status,
+            {
+                "model": ErroOut,
+                "description": _DESCRICAO_STATUS[status],
+                "content": {"application/json": {"examples": {}}},
+            },
+        )
+        resposta["content"]["application/json"]["examples"][code] = {
+            "summary": resumo,
+            "value": exemplo,
+        }
+    return saida
+
+
+def respostas_publicas(*codes: str) -> dict[int | str, dict[str, Any]]:
+    """Como `respostas`, mas sem os erros de base — para as rotas sem credencial.
+
+    Três existem: `/health`, o feed `.ics` (o segredo é o token na URL) e o
+    callback do OAuth (quem chama é o navegador redirecionado pelo Google).
+    Documentar 401/403 nelas seria mentir sobre o contrato — mas 422 vale
+    para todas, porque o handler de validação é do app inteiro.
+    """
+    saida: dict[int | str, dict[str, Any]] = {}
+    for code in ("PAYLOAD_INVALIDO", *codes):
         status, resumo, exemplo = CATALOGO[code]
         resposta = saida.setdefault(
             status,

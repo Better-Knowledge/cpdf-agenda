@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
 // O toast é o retorno padrão de toda ação bem-sucedida (DS §3.10).

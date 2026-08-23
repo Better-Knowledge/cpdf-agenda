@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Driver Meta Cloud API — interface pronta, implementação como extensão (aula).
 
 O que a implementação exige (conteúdo do módulo, PRD §9.1):

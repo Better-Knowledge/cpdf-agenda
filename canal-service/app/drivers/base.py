@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Contrato dos drivers de WhatsApp (`00` §4.8).
 
 A assimetria que a interface carrega desde o dia 1: na Meta, mensagem ativa

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-19 — o agente perde autoridade própria na agenda.
 
 Antes disto ele se apresentava com `X-Service-Key` + `X-Org-Id`: autoridade

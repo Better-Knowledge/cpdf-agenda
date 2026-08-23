@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """agenda-service — Agenda Inteligente (módulo 02 do AS/IA Avançado).
 
 API-first: este OpenAPI é o contrato que a UI, o link público e o
@@ -20,9 +23,14 @@ from .jobs import criar_scheduler
 from .routers import (
     appointments,
     availability,
+    booking_links,
+    calendly,
     canal,
     credenciais,
     health,
+    ics,
+    integracoes,
+    metricas,
     recorrencia,
     resources,
     services,
@@ -134,6 +142,46 @@ TAGS = [
         ),
     },
     {
+        "name": "calendário",
+        "description": (
+            "Feed .ics somente-leitura (RF-11) — a opção de calendário sem OAuth. "
+            "O segredo é o token na URL: revogável, e com modo `privado` que mostra "
+            "só 'Ocupado'. É **visão consolidada, não notificação**."
+        ),
+    },
+    {
+        "name": "integrações",
+        "description": (
+            "Google Calendar (RF-12): push de evento em < 60 s e busy-read no motor "
+            "de slots. Falha do Google nunca bloqueia agendamento — o push tem fila "
+            "com retry e o busy-read degrada para o cálculo local."
+        ),
+    },
+    {
+        "name": "link público",
+        "description": (
+            "Auto-agendamento por link (RF-13) — a via opcional, para o cliente que "
+            "prefere clicar. A página pública usa o **mesmo** motor de slots e o "
+            "mesmo caminho de criação: sem rota privilegiada, com limite por IP e "
+            "coleta mínima."
+        ),
+    },
+    {
+        "name": "calendly",
+        "description": (
+            "Importação one-way do Calendly (RF-16), **opcional**: sem configurar, "
+            "nada muda. O que é marcado lá aparece aqui e ocupa o horário; a agenda "
+            "nunca escreve no Calendly."
+        ),
+    },
+    {
+        "name": "métricas",
+        "description": (
+            "Os números do §4 no período: ocupação, faltas, confirmações e origem dos "
+            "agendamentos. Percentual sem base de cálculo volta `null`, nunca `0`."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -170,6 +218,11 @@ app.include_router(recorrencia.router)
 app.include_router(waitlist.router)
 app.include_router(canal.router)
 app.include_router(credenciais.router)
+app.include_router(ics.router)
+app.include_router(integracoes.router)
+app.include_router(booking_links.router)
+app.include_router(calendly.router)
+app.include_router(metricas.router)
 
 
 def openapi_contrato():

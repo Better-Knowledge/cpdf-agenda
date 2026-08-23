@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Bloqueio, Recurso, Regra, api } from "../api";
 import { BotaoConfirmar } from "../Confirmar";

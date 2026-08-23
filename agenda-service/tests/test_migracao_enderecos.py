@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """A migration 0004 normaliza endereços já gravados — e precisa mesmo rodar.
 
 O risco específico aqui é a migration passar em silêncio: `appointments` e

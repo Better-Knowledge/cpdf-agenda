@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Envio das ofertas da fila (RF-14) — fora do caminho da resposta HTTP.
 
 Separado do router de propósito: quem cancela um horário não deve esperar a

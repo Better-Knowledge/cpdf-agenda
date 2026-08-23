@@ -55,6 +55,13 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   é a agenda, com o mesmo 403 que daria a um `curl`. Uma chave de serviço no
   `.env` dele recria o confused deputy que o RF-18 eliminou (teste:
   `test_o_conector_nao_tem_credencial_propria`).
+- **Data ambígua vira pergunta, não palpite** (§16): `agenda-mcp/app/datas.py`
+  levanta `Ambigua` com a pergunta pronta em vez de escolher um mês. "Dia 5"
+  quando o dia 5 já passou não é abril — é uma pergunta ao cliente.
+- **Nenhum conector MCP tem credencial própria** — vale para os dois. Um teste
+  em cada um falha se aparecer campo com cara de segredo em `Settings`.
+- **Métrica sem base de cálculo devolve `null`, nunca `0`** (`/metricas`):
+  "não houve compromisso" e "todos faltaram" são leituras opostas.
 - **O titular é cunhado onde o endereço é provado** (RF-19): dentro do
   `canal-service`, depois do `compare_digest` do token de webhook, e viaja
   assinado (`ats_…`, HMAC, 30 min). Nenhum serviço declara por quem age —
@@ -69,6 +76,32 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
 - Toda listagem paginada (`limit`/`cursor`); dinheiro `numeric(14,2)`, string na API
 - Migrations reversíveis (`alembic downgrade` testado)
 - Cancelamento exige confirmação humana (elicitation MCP ou `confirmation_token`)
+
+## Licença
+Apache 2.0 (`LICENSE`, verbatim — não edite) + `NOTICE` com a atribuição
+obrigatória da Seção 4(d). Autor: Fernando Melo Faraco
+<fernando.faraco@better-knowledge.com.br> (CPDF · Better-Knowledge).
+
+**Todo arquivo-fonte novo (`.py`, `.ts`, `.tsx`, `.css`) começa com o
+cabeçalho SPDX** — duas linhas, antes de qualquer código e antes da docstring
+(comentário não conta como primeira instrução, então a docstring segue sendo
+a docstring):
+
+```python
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+```
+
+`//` em `.ts`/`.tsx`; `/* … */` em `.css`. É a Seção 4(c) na prática: o
+cabeçalho é o que mantém a atribuição colada ao código quando um arquivo
+viaja sozinho, fora do repositório — que é justamente quando `LICENSE` e
+`NOTICE` não vão junto. Conferir com:
+
+```bash
+git ls-files '*.py' '*.ts' '*.tsx' '*.css' | xargs grep -L SPDX-License-Identifier
+```
+
+Não introduza dependência com licença incompatível (GPL/AGPL) sem falar antes.
 
 ## Não faça
 - Não chame API de WhatsApp direto de nenhum módulo — sempre via `canal-service`

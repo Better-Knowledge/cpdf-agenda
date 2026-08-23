@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """IA-03 — risco de no-show, determinístico e explicável.
 
 Sem ML de propósito (PRD §8): com poucas dezenas de agendamentos por

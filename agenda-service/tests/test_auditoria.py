@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """`00` §5.8 — a auditoria responde "quem fez isso, em nome de quem, e deu certo?".
 
 O teste mais importante aqui é o negativo: a auditoria vive no

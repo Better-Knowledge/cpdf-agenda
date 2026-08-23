@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br> */
+
 /* Agenda Inteligente — identidade do programa (docs/DESIGN-SYSTEM.md):
    papel, não painel de controle. Creme + tinta + terracota como única cor de
    ação; serifa itálica carrega número e ênfase. As assinaturas da agenda
@@ -621,3 +624,66 @@ table.lista td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
   @keyframes fade { from { opacity: 0; } }
   @keyframes rise { from { transform: translate(-50%, 14px); opacity: 0; } }
 }
+
+/* ── Página pública de auto-agendamento (P-01) ─────────────────────────── */
+/* Sem topo, sem menu, sem sessão: quem abre isto é o cliente final, e a
+   página não deve nem sugerir que existe um painel do outro lado.        */
+.publica {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+.publica h1 { margin-bottom: 4px; }
+.publica .bloco { margin-top: 28px; }
+.publica .vazio { padding: 18px 0; }
+.publica .confirmado-grande {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--success);
+  margin: 12px 0;
+}
+.rodape-publico { color: var(--fg-muted); font-size: 13px; margin-top: 12px; }
+.aviso-caucao {
+  background: rgba(226, 101, 70, 0.1);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-top: 14px;
+}
+.tiras-dias, .tiras-horas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tira {
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.tira:hover { border-color: var(--border-2); }
+.tira.ativa { background: var(--ac-ink); color: var(--ac-cream); border-color: transparent; }
+
+/* ── T-10: os números ──────────────────────────────────────────────────── */
+.painel-numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.numero {
+  background: var(--bg-raised, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.numero .rotulo { font-size: 13px; color: var(--fg-muted); }
+.numero .grande { font-family: var(--font-display); font-size: 30px; line-height: 1.1; }
+.numero .grande small { font-size: 16px; color: var(--fg-muted); margin-left: 2px; }
+/* Sem base de cálculo não se mostra número: é o ponto da tela. */
+.numero .sem-base { font-size: 14px; color: var(--fg-soft); font-style: italic; padding: 6px 0; }
+.numero .alvo { font-size: 12px; color: var(--fg-soft); }
+.barra { height: 10px; background: var(--accent); border-radius: 5px; min-width: 2px; }

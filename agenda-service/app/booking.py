@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Regras de agendamento: carregar ocupação, criar/reagendar/cancelar.
 
 A invariante anti-double-booking mora na constraint `sem_double_booking`
@@ -13,6 +16,7 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import google_sync
 from . import risco as risco_no_show
 from .config import settings
 from .errors import ApiError, NaoEncontrado
@@ -60,11 +64,14 @@ def recursos_do_servico(db: Session, servico: Service) -> list[Resource]:
     )
 
 
-def _ocupacao(db: Session, resource_id: uuid.UUID, de: datetime, ate: datetime):
-    """Bloqueios + agendamentos vivos do recurso no intervalo (em UTC).
+def _ocupacao(
+    db: Session, org_id: uuid.UUID, resource_id: uuid.UUID, de: datetime, ate: datetime
+):
+    """Bloqueios + agendamentos vivos + busy do Google, no intervalo (em UTC).
 
-    Quando a integração Google (RF-12) chegar, o busy-read entra aqui —
-    o motor de slots não sabe que a integração existe.
+    O motor de slots não sabe que a integração existe: para ele, tudo é
+    intervalo ocupado. Google fora do ar devolve lista vazia com aviso no
+    log — degrada para o cálculo local em vez de derrubar a consulta.
     """
     janela = Range(utc(de), utc(ate))
     ocupados: list[tuple[datetime, datetime]] = []
@@ -92,6 +99,8 @@ def _ocupacao(db: Session, resource_id: uuid.UUID, de: datetime, ate: datetime):
                 compromisso.periodo.upper + timedelta(minutes=servico.buffer_depois_min),
             )
         )
+    # RF-12: reunião marcada direto no Google bloqueia o slot aqui também.
+    ocupados += google_sync.ocupado_no_google(db, org_id, resource_id, de, ate)
     return ocupados
 
 
@@ -117,7 +126,7 @@ def slots_do_recurso(
         buffer_antes_min=servico.buffer_antes_min,
         buffer_depois_min=servico.buffer_depois_min,
         regras=regras,
-        ocupados=_ocupacao(db, resource_id, de, ate),
+        ocupados=_ocupacao(db, servico.org_id, resource_id, de, ate),
         de=de,
         ate=ate,
         agora=agora_utc(),

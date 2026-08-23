@@ -35,6 +35,40 @@ services:
       - "traefik.http.services.cpdf-canal-webhook.loadbalancer.server.port=8000"
       - "traefik.docker.network=web"
 
+  # O conector MCP administrativo. Neste VPS não há host dedicado: ele fica em
+  # /mcp do mesmo domínio, e a regra mais longa ganha do catch-all da agenda
+  # (mesmo mecanismo de /app e /webhooks/canal/). O deploy de referência do
+  # Caddyfile usa `mcp.DOMINIO/agenda/admin/mcp` — o caminho com módulo e papel
+  # passa a valer quando os módulos 03 e 04 publicarem os conectores deles.
+  #
+  # Exposto de propósito: é por aqui que o cliente MCP da equipe conecta. Quem
+  # autentica é o bearer da própria conexão; o conector não tem chave nenhuma.
+  agenda-admin-mcp:
+    networks: [interna, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-agenda-mcp.entrypoints=websecure"
+      - "traefik.http.routers.cpdf-agenda-mcp.rule=Host(`cpdf-agenda.better-knowledge.com`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.cpdf-agenda-mcp.service=cpdf-agenda-mcp"
+      - "traefik.http.routers.cpdf-agenda-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-agenda-mcp.loadbalancer.server.port=8000"
+      - "traefik.docker.network=web"
+
+  # O conector de atendimento fica em /mcp-atendimento do mesmo domínio, pelo
+  # mesmo motivo do administrativo: neste VPS não há host dedicado para MCP.
+  agenda-mcp:
+    networks: [interna, web]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.entrypoints=websecure"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.rule=Host(`cpdf-agenda.better-knowledge.com`) && PathPrefix(`/mcp-atendimento`)"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.service=cpdf-agenda-mcp-atendimento"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.middlewares=cpdf-mcp-atendimento-strip"
+      - "traefik.http.middlewares.cpdf-mcp-atendimento-strip.stripprefix.prefixes=/mcp-atendimento"
+      - "traefik.http.routers.cpdf-agenda-mcp-atendimento.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cpdf-agenda-mcp-atendimento.loadbalancer.server.port=8000"
+      - "traefik.docker.network=web"
+
   web:
     networks: [interna, web]
     labels:

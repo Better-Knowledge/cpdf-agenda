@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """canal-service — adapter de WhatsApp do programa (`00` §4.8).
 
 Nasce no módulo 02 e é reutilizado pelos módulos 03 (pedidos) e 04

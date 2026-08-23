@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
@@ -350,6 +353,61 @@ def listar(
     if resource_id:
         q = q.where(Appointment.resource_id == resource_id)
     return [_out(a) for a in db.scalars(q.order_by(Appointment.periodo))]  # exige operacao
+
+
+@router.get(
+    "/appointments/meus",
+    response_model=list[AppointmentOut],
+    summary="Compromissos futuros do cliente que está sendo atendido",
+    description=(
+        "Os próximos compromissos de **um** cliente, na ordem. É o que o agente do "
+        "canal usa para responder \"o que eu tenho marcado?\" sem enxergar a agenda "
+        "de mais ninguém.\n\n"
+        "Numa sessão de atendimento o parâmetro `telefone` é ignorado: quem responde "
+        "é o titular que o canal provou. Sem sessão de atendimento, informar o "
+        "telefone de outra pessoa exige `agenda:operacao` — do contrário a rota "
+        "viraria enumeração, um telefone por chamada."
+    ),
+    responses=respostas("NAO_ENCONTRADO", "TELEFONE_OBRIGATORIO"),
+    openapi_extra=operacao("agenda:read"),
+)
+def meus(
+    telefone: str | None = Query(
+        default=None,
+        description="Endereço no canal. Ignorado (e desnecessário) numa sessão de atendimento.",
+    ),
+    limit: int = Query(default=10, le=50),
+    cred: Credencial = Depends(credencial_atual),
+    db: Session = Depends(get_db),
+) -> list[AppointmentOut]:
+    exigir_escopo(cred, "agenda:read")
+    from sqlalchemy import text as sql_text
+
+    if cred.titular is None:
+        if not telefone:
+            raise ApiError(
+                code="TELEFONE_OBRIGATORIO",
+                message="Informe o telefone do cliente.",
+                hint=(
+                    "Esta credencial não fala por um cliente específico. Passe "
+                    "`telefone`, ou use GET /appointments?date= para ver o dia inteiro."
+                ),
+            )
+        # Perguntar pelo compromisso de terceiro é operação, não atendimento.
+        exigir_escopo(cred, ESCOPO_OPERACAO)
+    alvo = enderecos.normalizar(cred.titular or telefone)
+    compromissos = db.scalars(
+        select(Appointment)
+        .where(
+            Appointment.org_id == cred.org_id,
+            Appointment.cliente_telefone == alvo,
+            Appointment.status.in_(("agendado", "confirmado")),
+            sql_text("upper(periodo) > now()"),
+        )
+        .order_by(Appointment.periodo)
+        .limit(limit)
+    ).all()
+    return [_out(ap, completo=cred.pode(ESCOPO_OPERACAO)) for ap in compromissos]
 
 
 @router.get(

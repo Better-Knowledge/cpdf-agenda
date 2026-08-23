@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """T-09 — o canal chega à UI por procuração: o agenda-service repassa a
 chamada com credencial service-to-service e transporta os erros intactos."""
 

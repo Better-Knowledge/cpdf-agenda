@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Schema inicial do agenda-service (PRD §10).
 
 Invariantes que vivem AQUI, no banco — nunca só na aplicação:

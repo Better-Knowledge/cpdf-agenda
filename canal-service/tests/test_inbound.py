@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Inbound: normalização, idempotência por (driver, message_id) e opt-out por regra."""
 
 from .conftest import integracao

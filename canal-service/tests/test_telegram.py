@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Driver Telegram — o canal de demonstração da aula.
 
 Sem QR, sem chip, sem número pessoal em risco: o que muda em relação ao

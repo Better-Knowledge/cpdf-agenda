@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Quem sou eu — e, adiante, gestão de credenciais.
 
 `GET /credenciais/eu` é deliberadamente aberto a qualquer credencial

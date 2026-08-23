@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Modelo de dados do agenda-service — espelho do PRD §10.
 
 A verdade sobre conflito de horário NÃO está aqui: vive na constraint
@@ -233,6 +236,40 @@ class DomainEvent(Base):
     processed_at: Mapped[datetime | None]
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class EventDelivery(Base):
+    """Estado de entrega de um evento **por consumidor** (outbox com um cursor
+    cada). `domain_events.processed_at` seria um cursor só para todo mundo: o
+    primeiro consumidor a passar roubaria o evento dos demais."""
+
+    __tablename__ = "event_deliveries"
+    event_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("domain_events.id", ondelete="CASCADE"), primary_key=True
+    )
+    consumer: Mapped[str] = mapped_column(Text, primary_key=True)
+    processed_at: Mapped[datetime | None]
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class CalendlyLink(Base):
+    """RF-16 — de onde o webhook público sabe a qual organização pertence.
+
+    O evento do Calendly chega sem sessão; é a assinatura, verificada com o
+    `segredo` desta linha, que identifica a org e autoriza a importação.
+    """
+
+    __tablename__ = "calendly_links"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID]
+    service_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("services.id"))
+    resource_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("resources.id"))
+    segredo: Mapped[dict] = mapped_column(JSONB)  # cifrado (Fernet); write-only na API
+    cria_lembretes: Mapped[bool] = mapped_column(Boolean, default=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    __table_args__ = (UniqueConstraint("org_id", name="um_calendly_por_org"),)
 
 
 class IdempotencyKey(Base):

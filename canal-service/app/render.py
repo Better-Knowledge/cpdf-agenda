@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Renderização de templates com {{variaveis}}.
 
 Variável sem valor NÃO sai como buraco no texto: mensagem ativa com template

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Credenciais de agente com escopo, auditoria, e titular na idempotência.
 
 Por que em tabela e não em variável de ambiente: escopo por credencial só é

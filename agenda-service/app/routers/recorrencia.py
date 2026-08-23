@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-15 — Recorrência simples: série semanal/quinzenal, sem RRULE.
 
 Cada ocorrência é um appointment próprio ligado à série (series_id) —

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-14 — fila de espera.
 
 A regra que estes testes protegem é a mais contraintuitiva do requisito:

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Jobs do VPS (APScheduler) — disparam com a máquina do aluno desligada.
 
 Lembretes (RF-05): varre `reminders` vencidos a cada 5 min, janela de
@@ -12,7 +15,7 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
 
-from . import canal_client, fila, ofertas
+from . import canal_client, fila, google_sync, ofertas
 from . import risco as risco_no_show
 from .db import SessionLocal, sessao_org, sessao_worker
 from .models import Appointment, Reminder, Service
@@ -135,8 +138,21 @@ def processar_fila() -> None:
         ofertas.ofertar_slot_liberado(org_id, service_id, resource_id, slot.lower, slot.upper)
 
 
+def processar_google() -> None:
+    """RF-12: push assíncrono para o Google Calendar.
+
+    Falha na API do Google não bloqueia agendamento — é este job que absorve
+    a indisponibilidade, com backoff e no máximo 5 tentativas por evento.
+    """
+    try:
+        google_sync.processar_pendentes()
+    except Exception:  # um job não pode derrubar o scheduler
+        log.exception("falha inesperada no push do Google Calendar")
+
+
 def criar_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(processar_lembretes, "interval", minutes=5, id="lembretes")
     scheduler.add_job(processar_fila, "interval", minutes=1, id="fila")
+    scheduler.add_job(processar_google, "interval", minutes=1, id="google")
     return scheduler

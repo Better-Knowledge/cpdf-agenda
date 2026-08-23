@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +38,22 @@ class Settings(BaseSettings):
     # devolve a um único segredo de ambiente o poder sobre todos os clientes
     # da organização. Mesmo espírito de `app_env`: o padrão fecha a porta.
     atendimento_isolado: bool = True
+
+    # Chave Fernet para cifrar segredos de terceiros no banco — hoje os tokens
+    # OAuth do Google (RF-12). Própria, e não a do canal: comprometer um
+    # serviço não deve entregar os segredos do outro.
+    agenda_crypto_key: str = ""
+
+    # RF-12 — app OAuth do Google. Sem os dois, a integração some da UI em vez
+    # de aparecer quebrada: nada no produto depende dela para funcionar.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
+    # URL pública do serviço, usada para montar links que saem daqui: feed
+    # .ics (RF-11), link de auto-agendamento (RF-13) e callback do OAuth do
+    # Google (RF-12). Vazia, o valor é deduzido da própria requisição — o que
+    # basta em dev e erra atrás de proxy que não repassa o host original.
+    base_url_publica: str = ""
 
     canal_service_url: str = "http://canal-service:8000"
     canal_service_key: str = ""

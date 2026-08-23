@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { sessao } from "./api";
 import { ToastProvider } from "./Toast";
@@ -24,11 +27,20 @@ export function Layout() {
           <NavLink to="/fila" className={aba}>
             Fila de espera
           </NavLink>
+          <NavLink to="/links" className={aba}>
+            Links
+          </NavLink>
+          <NavLink to="/calendarios" className={aba}>
+            Calendários
+          </NavLink>
+          <NavLink to="/metricas" className={aba}>
+            Números
+          </NavLink>
           <NavLink to="/canal" className={aba}>
             Canal
           </NavLink>
           <NavLink to="/credenciais" className={aba}>
-            Integrações
+            Chaves de acesso
           </NavLink>
         </nav>
         <div className="canto">

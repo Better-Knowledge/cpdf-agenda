@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Fixtures dos testes.
 
 Unidade (motor de slots, tempo) roda sem banco. Integração exige um
@@ -9,6 +12,7 @@ import os
 import uuid
 
 import pytest
+from cryptography.fernet import Fernet
 
 # URL do superusuário do Postgres de teste (cria banco e role de app)
 ADMIN_URL = os.environ.get(
@@ -25,6 +29,9 @@ os.environ["APP_ENV"] = "dev"
 os.environ.setdefault("SUPABASE_JWT_SECRET", "segredo-de-teste")
 os.environ.setdefault("SESSAO_ATENDIMENTO_SECRET", "segredo-de-sessao-teste")
 os.environ.setdefault("ANTECEDENCIA_MINIMA_MIN", "0")
+# Cifragem dos segredos de terceiros (tokens OAuth do Google, RF-12). Chave
+# efêmera: cada rodada gera a sua, e nada cifrado sobrevive à suíte.
+os.environ.setdefault("AGENDA_CRYPTO_KEY", Fernet.generate_key().decode())
 
 
 def _garantir_banco() -> bool:
@@ -67,6 +74,17 @@ def banco_migrado():
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
     yield
+
+
+@pytest.fixture(autouse=True)
+def _sem_limite_de_taxa():
+    """O limite por IP das rotas públicas (RF-13) é de processo: sem zerar
+    entre testes, um arquivo inteiro compartilharia a mesma janela."""
+    from app import rate_limit
+
+    rate_limit.limpar()
+    yield
+    rate_limit.limpar()
 
 
 @pytest.fixture()

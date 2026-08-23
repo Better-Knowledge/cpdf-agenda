@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Gestão de credenciais pela API — e a linha que ela não atravessa.
 
 O bootstrap continua na CLI. O que estas rotas dão é o dia a dia: emitir para

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """O catálogo de tools é interface: o modelo escolhe pela descrição.
 
 Estes testes tratam nome e texto como contrato, não como comentário. Uma tool
@@ -84,3 +87,28 @@ def test_o_dia_nao_e_confundido_com_busca_de_horario(tools):
     descrição desarma isso explicitamente."""
     (dia,) = [t for t in tools if t.name == "agenda_admin_dia"]
     assert "não" in dia.description.lower() and "livre" in dia.description.lower()
+
+
+def test_os_tres_prompts_do_prd_existem():
+    """§14.3. Prompt é roteiro, não automação — e os três roteiros terminam
+    devolvendo texto para uma pessoa decidir, nunca executando."""
+    import asyncio
+
+    from app.servidor import mcp
+
+    prompts = asyncio.run(mcp.list_prompts())
+    assert {p.name for p in prompts} == {
+        "agenda_do_dia",
+        "remarcar_semana",
+        "confirmar_pendentes",
+    }
+
+
+def test_o_roteiro_de_remarcar_para_antes_de_agir():
+    """O prompt mais perigoso do conjunto: sem esta instrução, o modelo
+    remarcaria a semana inteira de clientes reais por conta própria."""
+    from app.servidor import remarcar_semana
+
+    texto = remarcar_semana(de="2027-03-15", ate="2027-03-19")
+    assert "pare aí" in texto
+    assert "sem meu OK" in texto

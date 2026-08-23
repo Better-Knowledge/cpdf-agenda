@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Cursor opaco para listagens (`limit`/`cursor` — convenção do programa).
 
 O cursor codifica (created_at, id) do último item; estável sob inserções

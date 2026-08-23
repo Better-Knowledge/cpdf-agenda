@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """IA-03 — risco de no-show determinístico e explicável.
 
 O ponto destes testes não é o número em si: é que o número seja sempre

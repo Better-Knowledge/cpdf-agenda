@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Migration reversível é regra do repo: upgrade → downgrade → upgrade.
 
 O caso interessante aqui é a 0002: a limpeza do downgrade acontece numa

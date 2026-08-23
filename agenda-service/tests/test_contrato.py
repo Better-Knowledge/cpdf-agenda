@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """RF-17 — o OpenAPI é o contrato do módulo.
 
 Estes testes não precisam de banco: validam o schema gerado e garantem que
@@ -34,8 +37,12 @@ def test_security_schemes_declarados(spec):
 
 def test_toda_rota_declara_escopo_e_erros_de_base(spec):
     for caminho, metodo, op in _operacoes(spec):
-        if caminho.startswith("/health"):
-            assert op["security"] == []  # única rota sem credencial
+        if op.get("security") == []:
+            # Rota pública de propósito: `/health`, o feed .ics (o segredo é o
+            # token na URL) e o callback do OAuth (quem chama é o navegador
+            # redirecionado pelo Google). Sem credencial, declarar escopo ou
+            # documentar 401/403 seria mentir sobre o contrato.
+            assert not op.get("x-escopo-requerido"), f"{metodo.upper()} {caminho}"
             continue
         assert op.get("x-escopo-requerido"), f"{metodo.upper()} {caminho} sem escopo"
         assert f"`{op['x-escopo-requerido']}`" in op["description"]

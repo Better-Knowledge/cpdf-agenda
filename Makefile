@@ -1,4 +1,4 @@
-.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente test-mcp lint openapi credencial credenciais migrar-chaves revogar mcp-dev up down
+.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente test-mcp lint openapi credencial credenciais migrar-chaves revogar mcp-dev mcp-atendimento up down
 
 dev-db:            ## sobe Postgres local de desenvolvimento
 	docker compose --profile dev up -d db
@@ -20,14 +20,16 @@ test-canal:
 test-agente:       ## agente do inbound — roda sem banco
 	cd agente-service && uv run pytest -q
 
-test-mcp:          ## conector MCP administrativo — roda sem banco
+test-mcp:          ## conectores MCP (atendimento e administrativo) — sem banco
 	cd agenda-admin-mcp && uv run pytest -q
+	cd agenda-mcp && uv run pytest -q
 
 lint:
 	cd agenda-service && uv run ruff check app tests
 	cd canal-service && uv run ruff check app tests
 	cd agente-service && uv run ruff check app tests
 	cd agenda-admin-mcp && uv run ruff check app tests
+	cd agenda-mcp && uv run ruff check app tests
 
 openapi:           ## exporta o contrato para docs/openapi.json (RF-17)
 	cd agenda-service && uv run python scripts/exportar_openapi.py
@@ -44,8 +46,11 @@ migrar-chaves:     ## move AGENT_API_KEYS do .env para agent_credentials (preser
 revogar:           ## revoga uma credencial: make revogar ID=<uuid>
 	cd agenda-service && uv run python -m app.admin_cli revogar "$(ID)"
 
-mcp-dev:           ## conector MCP em http://127.0.0.1:8100/mcp (para o MCP Inspector)
+mcp-dev:           ## conector administrativo em http://127.0.0.1:8100/mcp
 	cd agenda-admin-mcp && APP_ENV=dev uv run uvicorn app.main:app --port 8100
+
+mcp-atendimento:   ## conector de atendimento em http://127.0.0.1:8101/mcp
+	cd agenda-mcp && APP_ENV=dev uv run uvicorn app.main:app --port 8101
 
 web-dev:           ## UI em modo dev (proxy para a API local)
 	cd web && npm install && npm run dev

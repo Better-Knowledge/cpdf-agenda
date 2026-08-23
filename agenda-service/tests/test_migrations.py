@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Migrations reversíveis (`00` §4.6): upgrade → downgrade → upgrade,
 num banco descartável para não interferir nos demais testes."""
 

@@ -3,6 +3,9 @@ name = "agenda-service"
 version = "0.1.0"
 description = "Agenda Inteligente — módulo 02 do AS/IA Avançado"
 requires-python = ">=3.12"
+authors = [{ name = "Fernando Melo Faraco", email = "fernando.faraco@better-knowledge.com.br" }]
+license = "Apache-2.0"
+license-files = ["../LICENSE", "../NOTICE"]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -12,6 +15,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "alembic>=1.13",
     "httpx>=0.27",
+    "cryptography>=43",
     "scalar-fastapi>=1.0",
     "apscheduler>=3.10,<4",
     "pyjwt>=2.9",

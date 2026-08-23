@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 import { ApiError } from "./api";
 
 /** Mostra o erro do contrato do programa: message + hint (a dica de recuperação). */

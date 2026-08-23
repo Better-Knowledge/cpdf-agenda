@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Schemas Pydantic da API. Dinheiro trafega como string (numeric no banco);
 horário sempre ISO 8601 com offset + label_humano na saída.
 """
@@ -770,3 +773,277 @@ class CanalOptoutOut(BaseModel):
 class RemocaoOptoutOut(BaseModel):
     telefone: str
     removido: bool
+
+
+# ── Feed .ics (RF-11) ────────────────────────────────────────────────────────
+
+
+class IcsTokenIn(BaseModel):
+    """O feed é por recurso; sem `resource_id`, cobre a organização inteira."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"resource_id": "8b1f…", "modo": "completo"}],
+        }
+    )
+    resource_id: UUID | None = Field(
+        default=None, description="Recurso do feed. Omitido: todos os recursos da organização."
+    )
+    modo: str = Field(
+        default="completo",
+        description=(
+            "`completo` mostra serviço e cliente no título; `privado` mostra só "
+            "'Ocupado' — use quando a URL for parar num calendário compartilhado."
+        ),
+    )
+
+    @field_validator("modo")
+    @classmethod
+    def _modo_conhecido(cls, v: str) -> str:
+        if v not in ("completo", "privado"):
+            raise ValueError("modo deve ser 'completo' ou 'privado'")
+        return v
+
+
+class IcsTokenOut(BaseModel):
+    """A URL sai **redigida**: quem a obtém lê a agenda inteira do recurso.
+
+    O valor completo aparece uma vez na criação e, depois, só em
+    `POST /ics/tokens/{id}/revelar` — o mesmo tratamento que a `webhook_url`
+    do canal recebe.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    resource_id: UUID | None = None
+    modo: str
+    url: str = Field(description="URL do feed, com o token redigido")
+    revogado_em: datetime | None = None
+    created_at: datetime
+
+
+class IcsTokenCriadoOut(IcsTokenOut):
+    url_completa: str = Field(
+        description="Assine esta URL no Google/Apple Calendar. Recupere depois em /ics/tokens/{id}/revelar."
+    )
+
+
+# ── Google Calendar (RF-12) ──────────────────────────────────────────────────
+
+
+class GoogleConectarIn(BaseModel):
+    resource_id: UUID = Field(description="Recurso (profissional/sala) cuja agenda será espelhada")
+
+
+class GoogleConectarOut(BaseModel):
+    """A rota devolve a URL; quem navega até ela é o navegador do prestador.
+
+    Não é redirect direto porque a chamada é autenticada por header — e header
+    não sobrevive a um redirect iniciado pelo browser.
+    """
+
+    url: str = Field(description="Abra no navegador do prestador. Vale 10 minutos.")
+    expira_em_segundos: int = 600
+
+
+class GoogleConexaoOut(BaseModel):
+    """Status da conexão. Os tokens **nunca** aparecem aqui: são write-only."""
+
+    resource_id: UUID
+    resource_nome: str
+    calendar_id: str
+    ativo: bool
+    precisa_reconectar: bool = Field(
+        description="true quando o Google recusou os tokens (revogados lá, ou escopo retirado)"
+    )
+    conectado_em: datetime
+
+
+class GoogleDesconectadoOut(BaseModel):
+    resource_id: UUID
+    desconectado: bool = Field(description="false = já não havia conexão (é idempotente)")
+    aviso: str
+
+
+# ── Link público de auto-agendamento (RF-13) ─────────────────────────────────
+
+
+class BookingLinkIn(BaseModel):
+    """A caução é **configuração informativa** nesta fase: a página mostra o
+    valor, e a cobrança via Pix é roadmap (§18). Nasce desligada."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"service_id": "9c1e…", "slug": "corte", "exige_caucao": False}]
+        }
+    )
+    service_id: UUID
+    resource_id: UUID | None = Field(
+        default=None, description="Opcional: link de um profissional específico"
+    )
+    slug: str | None = Field(
+        default=None,
+        max_length=60,
+        description="Pedaço final da URL. Omitido, é derivado do nome do serviço.",
+    )
+    exige_caucao: bool = False
+    valor_caucao: Decimal | None = None
+
+
+class BookingLinkPatch(BaseModel):
+    ativo: bool | None = None
+    exige_caucao: bool | None = None
+    valor_caucao: Decimal | None = None
+
+
+class BookingLinkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    service_id: UUID
+    resource_id: UUID | None = None
+    slug: str
+    url: str = Field(description="Endereço para mandar ao cliente")
+    ativo: bool
+    exige_caucao: bool
+    valor_caucao: Decimal | None = None
+    created_at: datetime
+
+    @field_serializer("valor_caucao")
+    def _dinheiro(self, v: Decimal | None) -> str | None:
+        return None if v is None else f"{v:.2f}"
+
+
+class PaginaPublicaOut(BaseModel):
+    """O que a página pública mostra antes de o cliente escolher horário.
+
+    De propósito, o mínimo: nome e duração do serviço. Nada de recurso, nada
+    de agenda — a página não é lugar de reconstruir a ocupação do prestador.
+    """
+
+    slug: str
+    servico: str
+    duracao_min: int
+    preco: str
+    exige_caucao: bool
+    valor_caucao: str | None = None
+    aviso_caucao: str | None = Field(
+        default=None, description="Texto pronto para a página, quando há caução configurada"
+    )
+
+
+class AgendamentoPublicoIn(BaseModel):
+    """Coleta mínima (LGPD §13): nome e um jeito de avisar. Nada além."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "cliente_nome": "Ana Prado",
+                    "cliente_telefone": "+5511999998888",
+                    "inicio": "2027-03-09T14:00:00-03:00",
+                }
+            ]
+        }
+    )
+    cliente_nome: str = Field(min_length=2, max_length=120)
+    cliente_telefone: str = Field(min_length=8, max_length=40)
+    inicio: datetime
+
+    @field_validator("inicio")
+    @classmethod
+    def _com_fuso(cls, v: datetime) -> datetime:
+        return exigir_aware(v, "inicio")
+
+
+class AgendamentoPublicoOut(BaseModel):
+    """A confirmação devolve o combinado — e nada sobre o resto da agenda."""
+
+    id: UUID
+    servico: str
+    inicio: datetime
+    label_humano: str
+    mensagem: str
+
+
+# ── Calendly (RF-16) ─────────────────────────────────────────────────────────
+
+
+class CalendlyConfigIn(BaseModel):
+    """A chave de assinatura é write-only: entra aqui, some do banco cifrada,
+    e nunca volta numa leitura."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "service_id": "9c1e…",
+                    "resource_id": "6f1e…",
+                    "chave_assinatura": "a-chave-do-webhook-no-Calendly",
+                    "cria_lembretes": False,
+                }
+            ]
+        }
+    )
+    service_id: UUID = Field(description="Serviço com que o agendamento importado entra")
+    resource_id: UUID = Field(description="Recurso que fica ocupado pelo compromisso importado")
+    chave_assinatura: str = Field(
+        min_length=8,
+        description="A signing key que o Calendly mostra ao criar a assinatura do webhook",
+    )
+    cria_lembretes: bool = Field(
+        default=False,
+        description=(
+            "Padrão false: o Calendly já manda os lembretes dele, e dois lembretes "
+            "para o mesmo horário é uma boa forma de irritar o cliente."
+        ),
+    )
+
+
+class CalendlyConfigOut(BaseModel):
+    service_id: UUID
+    resource_id: UUID
+    cria_lembretes: bool
+    ativo: bool
+    webhook_url: str = Field(description="Cadastre esta URL na assinatura do webhook no Calendly")
+    created_at: datetime
+
+
+class CalendlyRecebidoOut(BaseModel):
+    """Resposta do webhook. Sempre 200 quando a assinatura confere — inclusive
+    quando nada é importado: um 4xx faria o Calendly reenviar para sempre."""
+
+    importado: bool
+    motivo: str
+
+
+# ── Métricas (T-10) ──────────────────────────────────────────────────────────
+
+
+class MetricasOut(BaseModel):
+    """Os números do PRD §4, no período pedido.
+
+    Percentuais saem como número de 0 a 100 com uma casa — a tela não faz
+    conta, só mostra. Quando o denominador é zero, o campo vem `None` em vez
+    de `0`: "não houve base para calcular" e "deu zero" são coisas diferentes,
+    e confundir as duas é como métrica engana.
+    """
+
+    de: date
+    ate: date
+    total: int
+    por_status: dict[str, int]
+    por_origem: dict[str, int]
+    pct_por_conversa: float | None = Field(
+        description="Agendamentos com origem `agente` sobre o total (alvo do §4: ≥ 90%)"
+    )
+    pct_no_show: float | None = Field(description="Faltas sobre os compromissos já passados")
+    pct_confirmados: float | None = Field(
+        description="Confirmados pelo cliente sobre os compromissos do período"
+    )
+    pct_ocupacao: float | None = Field(
+        description="Horas agendadas sobre as horas de grade disponíveis no período"
+    )
+    cancelados: int
+    fila_aguardando: int
+    fila_atendida: int = Field(description="Pessoas que entraram na fila e acabaram agendando")
+    narrativa: str = Field(description="Os mesmos números em uma frase, prontos para falar")

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """A migration 0003 tem que ser reversível e a RLS tem que sobreviver a ela.
 
 O detalhe que quebra em silêncio: `force row level security`. A aplicação roda

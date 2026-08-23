@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Fernando Melo Faraco <fernando.faraco@better-knowledge.com.br>
+
 """Trocar de driver é configuração (channel_configs.driver), nunca código.
 
 A mesma suíte de testes roda em todos os drivers implementados — teste de
