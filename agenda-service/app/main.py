@@ -20,6 +20,7 @@ from .routers import (
     appointments,
     availability,
     canal,
+    credenciais,
     health,
     recorrencia,
     resources,
@@ -105,6 +106,14 @@ TAGS = [
         ),
     },
     {
+        "name": "credenciais",
+        "description": (
+            "Papéis e escopos. Um agente de **atendimento** (canal) alcança só o "
+            "compromisso do cliente que atende; um agente **administrativo** (via MCP) "
+            "configura a plataforma. Emitir credencial é operação de CLI, nunca de rota."
+        ),
+    },
+    {
         "name": "canal",
         "description": (
             "Canal de mensagens (T-09), por procuração: a UI fala com o agenda-service e "
@@ -136,6 +145,7 @@ app.include_router(appointments.router)
 app.include_router(recorrencia.router)
 app.include_router(waitlist.router)
 app.include_router(canal.router)
+app.include_router(credenciais.router)
 
 
 def openapi_contrato():

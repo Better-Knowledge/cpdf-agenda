@@ -6,7 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_env: str = "dev"
+    # Default "prod" de propósito: `dev_mode` libera X-Org-Id cru como
+    # credencial, e a API é publicada na internet. Um deploy que esqueça
+    # APP_ENV no .env não pode virar porta aberta — falhar fechado é o padrão.
+    app_env: str = "prod"
     log_level: str = "INFO"
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/agenda"

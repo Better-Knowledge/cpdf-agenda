@@ -60,7 +60,7 @@ def criar_serie(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     recursos = recursos_do_servico(db, servico)
@@ -120,7 +120,7 @@ def criar_serie(
         criadas=criadas,
         conflitos=conflitos,
     )
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
 
@@ -133,7 +133,8 @@ def criar_serie(
         "Exige agenda:cancel. Disparado por agente, exige confirmação humana: a "
         "primeira chamada devolve 409 CONFIRMACAO_NECESSARIA com prévia e token. "
         "Ocorrências passadas ou já realizadas não mudam; os slots futuros voltam "
-        "para a grade na hora."
+        "para a grade na hora. Exige também `agenda:operacao`: a série é entidade da "
+        "operação, e cancelá-la inteira não é ato de atendimento."
     ),
     response_model=SerieCanceladaOut,
     responses=respostas(
@@ -142,7 +143,7 @@ def criar_serie(
         "CONFIRMACAO_INVALIDA",
         "CONFIRMACAO_EXPIRADA",
     ),
-    openapi_extra=operacao("agenda:cancel", idempotente=True),
+    openapi_extra=operacao("agenda:cancel + agenda:operacao", idempotente=True),
 )
 def cancelar_serie(
     series_id: UUID,
@@ -152,7 +153,8 @@ def cancelar_serie(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:cancel")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    exigir_escopo(cred, "agenda:operacao")
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     serie = db.scalar(
         select(RecurrenceSeries).where(
@@ -201,6 +203,6 @@ def cancelar_serie(
     serie.ativo = False
 
     corpo = {"series_id": str(serie.id), "canceladas": len(futuras)}
-    idem.gravar(db, cred.org_id, request, corpo, 200)
+    idem.gravar(db, cred.org_id, request, corpo, 200, cred.titular)
     db.commit()
     return corpo

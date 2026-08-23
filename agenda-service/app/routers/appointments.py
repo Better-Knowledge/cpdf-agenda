@@ -84,7 +84,7 @@ def agendar(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     recursos = recursos_do_servico(db, servico)
@@ -120,7 +120,7 @@ def agendar(
             status_code=409,
         )
     corpo = _out(ap)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
 
@@ -147,7 +147,7 @@ def reagendar_endpoint(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     ap = _carregar(db, cred, appointment_id)
     if ap.status in ("cancelado", "realizado", "no_show"):
@@ -160,7 +160,7 @@ def reagendar_endpoint(
     servico = carregar_servico(db, cred.org_id, ap.service_id)
     ap = reagendar(db, ap, servico, dados.novo_inicio, cred.ator, dados.motivo)
     corpo = _out(ap)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     return corpo
 
@@ -193,7 +193,7 @@ def cancelar(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:cancel")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     ap = _carregar(db, cred, appointment_id)
     if ap.status == "cancelado":
@@ -223,7 +223,7 @@ def cancelar(
     _historico(db, ap, "cancelado", de=anterior, origem=cred.ator, motivo=dados.motivo)
     _evento(db, ap, "agenda.appointment.canceled")
     corpo = _out(ap)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     # RF-14: o horário voltou para a grade — quem está na fila é avisado logo
     # depois da resposta, não durante (o cancelamento não espera o WhatsApp).
@@ -266,15 +266,19 @@ def confirmar(
     "/appointments/{appointment_id}/no-show",
     response_model=AppointmentOut,
     summary="Registra falta do cliente (alimenta o histórico de risco — IA-03)",
+    description=(
+        "Exige `agenda:operacao`: registrar falta é ato do operador e alimenta o "
+        "risco de no-show do cliente. Um agente de atendimento nunca marca falta."
+    ),
     responses=respostas("NAO_ENCONTRADO"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:operacao"),
 )
 def no_show(
     appointment_id: UUID,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:operacao")
     ap = _carregar(db, cred, appointment_id)
     ap.status = "no_show"
     _historico(db, ap, "no_show", origem=cred.ator)
@@ -286,9 +290,14 @@ def no_show(
     "/appointments",
     response_model=list[AppointmentOut],
     summary="Lista compromissos por data e recurso",
-    description="Todos os status, na ordem do dia. Para checar disponibilidade use GET /slots.",
+    description=(
+        "Todos os status, na ordem do dia. Exige `agenda:operacao` — devolve nome, "
+        "contato e observações de **todos** os clientes daquele dia. Para checar "
+        "disponibilidade use GET /slots; para o compromisso de um cliente, "
+        "GET /appointments/proximo."
+    ),
     responses=respostas(),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("agenda:operacao"),
 )
 def listar(
     data: date = Query(alias="date"),
@@ -296,7 +305,7 @@ def listar(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> list[AppointmentOut]:
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "agenda:operacao")
     dia_ini = datetime.combine(data, datetime.min.time(), tzinfo=TZ)
     dia_fim = dia_ini + timedelta(days=1)
     from sqlalchemy.dialects.postgresql import Range
@@ -356,17 +365,18 @@ def proximo(
     description=(
         "Visão consolidada em linguagem clara: compromissos com status e risco, na "
         "ordem do dia. Use para responder 'como está meu dia?' — não para checar "
-        "disponibilidade (use GET /slots)."
+        "disponibilidade (use GET /slots). Exige `agenda:operacao`: a narrativa "
+        "nomeia todos os clientes do dia."
     ),
     responses=respostas(),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("agenda:operacao"),
 )
 def agenda_do_dia(
     data: date = Query(alias="date"),
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> dict:
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "agenda:operacao")
     compromissos = listar(data=data, resource_id=None, cred=cred, db=db)
     linhas = [
         f"{c.label_humano} — {c.cliente_nome} ({c.status}"

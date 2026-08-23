@@ -83,5 +83,6 @@ def test_optout_e_replay_nao_vao_ao_orquestrador(client, canal_configurado, inst
 
 
 def _token(client) -> str:
-    corpo = client.get("/canal/config").json()
-    return corpo["webhook_url"].split("token=")[1]
+    """O segredo sai redigido nas leituras — pedir por ele é explícito."""
+    corpo = client.post("/canal/webhook-url/revelar").json()
+    return corpo["webhook_url"].split("token=")[1].split("&")[0]

@@ -159,3 +159,18 @@ def test_optouts_listam_e_removem(client, canal_configurado, org_id):
     assert client.get("/canal/optouts").json() == []
     # idempotente
     assert client.delete("/canal/optouts/+5511911112222").json()["removido"] is False
+
+
+@integracao
+def test_webhook_url_sai_redigida_por_padrao(client, canal_configurado):
+    """O token na webhook_url autentica o inbound: quem o obtém forja mensagem
+    como qualquer cliente da organização. Ele não pode sair em toda leitura de
+    configuração — só quando alguém pede."""
+    canal_configurado("evolution")
+
+    lida = client.get("/canal/config").json()
+    assert "token=***" in lida["webhook_url"]
+
+    revelada = client.post("/canal/webhook-url/revelar").json()
+    assert "token=***" not in revelada["webhook_url"]
+    assert len(revelada["webhook_url"].split("token=")[1].split("&")[0]) > 20

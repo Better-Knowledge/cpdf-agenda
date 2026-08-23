@@ -80,13 +80,20 @@ visões, zero retrabalho.
 | **Cliente final** | "Marcar sem baixar app, no WhatsApp, na hora que lembrei" | Manda mensagem em linguagem natural; recebe lembrete; responde "confirmo" |
 | **Prestador / atendente** | "Ver o dia, bloquear férias, saber quem confirmou" | Consulta o dia (UI ou agente); bloqueia grade; vê o compromisso aparecer **na hora** no seu Google Calendar (RF-12) |
 | **Dono** | "Menos buraco na agenda, menos falta" | Métricas de ocupação e no-show; cobra política de confirmação |
-| **Agente de IA** | Usuário de primeira classe: entende o pedido, checa grade, marca, lembra, remarca | Via `agenda-mcp` (§14) + canal inbound (§9.1) |
+| **Agente de atendimento** | Fala com o cliente final: entende o pedido, checa grade, marca, lembra, remarca — **para uma pessoa por vez** | Canal inbound (§9.1); credencial de papel `atendimento` (RF-18) |
+| **Agente administrativo** | Da equipe: opera a plataforma por conversa como alternativa ao painel — cria agendas, define grade, consulta apontamentos | `agenda-admin-mcp` (§14.5); credencial de papel `administrativo` (RF-18) |
 
 **Jornada mestra:** cliente manda mensagem (§9.1) → agente entende a intenção e
 a data (§8 IA-01/IA-04) → consulta slots (RF-02/03) → marca sem double-booking
 (RF-04) → confirmação + lembretes via template (RF-05) → cliente confirma ou
 remarca por resposta (RF-06) → tarefa espelho (RF-07), Google Calendar (RF-12)
 e feed .ics (RF-11) refletem tudo.
+
+**Jornada administrativa (RF-18, §14.5):** alguém da equipe pede ao seu agente
+"abre a agenda da Dra. Marina, seg a sex das 9h às 17h" → o agente autentica no
+`agenda-admin-mcp` com credencial de papel `administrativo` → cria o recurso e
+a grade pelas mesmas rotas que a UI usa → a tela T-02 reflete na hora. É a
+mesma API; muda quem tem autoridade para quê.
 
 ---
 
@@ -96,8 +103,9 @@ e feed .ics (RF-11) refletem tudo.
 1. Cadastro de serviços (preço, duração, recursos)
 2. Grade de disponibilidade (horário de trabalho, intervalos, bloqueios)
 3. Agendamento por conversa (linguagem natural → slot)
-4. **`canal-service`**: adapter WhatsApp (Evolution + Z-API; Meta como
-   interface/aula), templates, inbound, opt-out — nasce aqui, serve M3 e M4
+4. **`canal-service`**: adapter de mensageria (Telegram + Evolution + Z-API;
+   Meta como interface/aula), templates, inbound, opt-out — nasce aqui, serve
+   M3 e M4
 5. Confirmações e lembretes automáticos pelo canal
 6. Reagendamento e cancelamento com devolução do slot
 7. Espelho no Gestor de Tarefas
@@ -111,6 +119,13 @@ e feed .ics (RF-11) refletem tudo.
 13. **Integração Calendly, opcional e one-way** (RF-16) — agendamentos feitos
     lá entram na agenda via webhook
 14. **Documentação OpenAPI servida por Scalar** (RF-17) — o contrato público da API
+15. **Papéis, escopos e credenciais de agente** (RF-18) — agente de atendimento
+    e agente administrativo têm autoridades diferentes, e a diferença é
+    verificada, não combinada
+16. **Isolamento do agente de atendimento** (RF-19) — quem atende um cliente
+    alcança os dados daquele cliente, e de mais ninguém
+17. **`agenda-admin-mcp`** (§14.5) — a equipe operando a plataforma por
+    conversa, como alternativa ao painel
 15. **Telas web** (§12): UI do prestador (agenda, cadastros, integrações,
     canal, métricas) + páginas públicas — sempre como segundo cliente da API
 16. Migração da agenda existente para a nuvem, com histórico preservado
@@ -202,8 +217,10 @@ Mesmo roteiro do M1 (§4.5 do doc base), aplicado à agenda.
 reconciliados 1:1, nenhum compromisso futuro perdido ou duplicado.
 
 ### RF-09 — Tools do agente
-Definidas no conector MCP (§14). Resumo: 8 tools, escopos `agenda:read` /
-`agenda:write` / `agenda:cancel`, cancelamento atrás de confirmação humana.
+Definidas nos conectores MCP (§14). São **dois catálogos**, porque são duas
+autoridades (RF-18): 8 tools de atendimento no `agenda-mcp` (escopos
+`agenda:read` / `agenda:write` / `agenda:cancel`) e 11 tools de operação no
+`agenda-admin-mcp` (§14.5). Cancelamento atrás de confirmação humana nos dois.
 
 ### RF-10 — `canal-service` (nasce neste módulo; contrato em `00` §4.8)
 **Critérios de aceite**
@@ -346,13 +363,94 @@ Definidas no conector MCP (§14). Resumo: 8 tools, escopos `agenda:read` /
   exemplos de request/response e erros documentados no formato
   `{code, message, hint}` — o mesmo texto alimenta as descrições das tools MCP
   (§14): uma fonte, dois consumidores.
-- Rotas com autenticação e escopos explícitos na spec (`agenda:read` /
-  `agenda:write` / `agenda:cancel`); rotas públicas (link, .ics, webhooks)
-  marcadas como tal.
+- Rotas com autenticação e **escopo explícito na spec** — os sete de RF-18; o
+  escopo declarado é o mesmo cobrado em execução, e é a fonte dos escopos das
+  tools MCP. Rotas públicas (link, .ics, webhooks) marcadas como tal.
 - A spec exportada (`/openapi.json`) é artefato versionado do módulo — mudança
   de contrato aparece no diff.
 - Critério de aula: aluno lê o `/docs` e executa um agendamento completo só
   pela documentação, sem abrir o código.
+
+### RF-18 — Papéis, escopos e credenciais de agente
+
+> **O requisito que separa duas coisas que estavam juntas.** Um agente de
+> WhatsApp/Telegram atende o **cliente final**; um agente da equipe **opera a
+> plataforma**. São autoridades diferentes, e tratá-las como uma só foi o
+> erro que este requisito corrige: até aqui toda credencial autenticada tinha
+> poder total sobre a organização — o bot do canal podia criar serviços,
+> apagar grade e ler o cadastro de todos os clientes.
+
+**Vocabulário de autoridade (7 escopos)**
+
+| Escopo | Cobre |
+|---|---|
+| `agenda:read` | catálogo, slots, grade semanal, o **próprio** compromisso |
+| `agenda:write` | agendar, reagendar, confirmar, fila — para **um** cliente |
+| `agenda:cancel` | cancelar um compromisso |
+| `agenda:operacao` | a operação inteira: dia completo, todos os compromissos, fila completa, histórico, bloqueios, no-show, série |
+| `agenda:admin` | escrita de catálogo e grade — serviços, recursos, janelas, bloqueios |
+| `canal:admin` | driver, credenciais de mensageria, `webhook_url`, templates, opt-outs |
+| `credenciais:admin` | emitir e revogar credenciais |
+
+**Papéis são presets, não gaiolas.** O papel preenche os escopos no momento da
+criação; a autoridade real é a lista gravada na credencial, que o
+administrador ajusta uma a uma.
+
+| Papel | Escopos padrão |
+|---|---|
+| `atendimento` | `read`, `write` |
+| `operacao` | `atendimento` + `operacao`, `cancel` |
+| `administrativo` | `operacao` + `agenda:admin`, `canal:admin` |
+
+**Critérios de aceite**
+- Credencial de papel `atendimento` recebe **403** em toda rota de catálogo,
+  grade, canal e visão da operação — e a mensagem de erro diz o que ela tem e
+  o que a operação exige.
+- Credencial com `agenda:read` + `agenda:write` **não** cancela (é o mesmo
+  aceite do §14.4, agora executável).
+- Credenciais vivem em tabela (§10), com **revogação sem redeploy**. O token
+  em claro existe uma única vez, na criação; o banco guarda só o hash.
+- **`credenciais:admin` nunca entra em preset de credencial de agente.** Só
+  humano autenticado por JWT emite credencial — um token administrativo
+  comprometido não pode emitir outro para sobreviver à própria revogação.
+- A **primeira** credencial de uma organização nasce por linha de comando no
+  servidor, nunca por rota: um endpoint que emite credencial administrativa é
+  um backdoor permanente.
+- `GET /credenciais/eu` devolve organização, papel, escopos e titular a
+  qualquer credencial autenticada — descobrir a própria autoridade não é
+  privilégio, e é o que permite ao agente falhar rápido em vez de tentar o que
+  seria recusado.
+- Toda ação de agente é registrada em `agent_audit_log` (§10, `00` §5.8),
+  incluindo **em nome de qual cliente** ela foi feita.
+
+### RF-19 — Isolamento do agente de atendimento
+
+> Escopo separa *capacidades*; isto separa *dados*. Sem ele, um agente de
+> atendimento com escopo mínimo ainda alcançaria o compromisso de qualquer
+> pessoa da organização — bastava conhecer o id.
+
+**Critérios de aceite**
+- A credencial de atendimento carrega o **titular**: o endereço do cliente que
+  ela está atendendo (E.164 no WhatsApp, `tg:<chat_id>` no Telegram).
+- O titular é **cunhado onde o endereço é provado** — no `canal-service`,
+  depois da verificação do segredo do webhook — e viaja como token de sessão
+  com validade curta. O agente não declara para quem trabalha; ele recebe essa
+  informação já assinada. Um header auto-declarado seria o ator restringido
+  definindo a própria restrição.
+- Compromisso de outro titular responde **404**, não 403: 403 confirmaria que
+  aquele compromisso existe.
+- `POST /appointments` e `POST /waitlist` gravam o titular da credencial —
+  ignorando divergência no corpo.
+- `GET /waitlist` devolve **apenas** as entradas do titular; a filtragem é do
+  servidor, nunca do cliente.
+- Sem `agenda:operacao`, a saída **omite** `risco_no_show`, `risco_detalhe` e
+  `observacoes`: são dados *sobre* o cliente que ele não deve ouvir do bot.
+- O titular faz parte da chave de idempotência — senão repetir a
+  `Idempotency-Key` de outra pessoa devolveria o corpo dela, porque a
+  verificação de idempotência precede as guardas de propriedade.
+- Endereços são normalizados na escrita e na comparação: `+5511998765432` e
+  `+55 11 99876-5432` são o mesmo cliente, e tratá-los como diferentes
+  deixaria a pessoa sem acesso ao próprio horário.
 
 ---
 
@@ -686,12 +784,56 @@ create table channel_optouts (
 );
 ```
 
+```sql
+-- RF-18: a autoridade de cada integração, revogável sem redeploy.
+-- O token em claro nunca é gravado — só o hash. `escopos` é a autoridade real;
+-- `papel` é apenas o preset que a preencheu.
+create table agent_credentials (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null,
+  nome          text not null,        -- "Agente do WhatsApp", "Copiloto da recepção"
+  papel         text not null check (papel in ('atendimento','operacao','administrativo')),
+  escopos       text[] not null,
+  token_hash    text not null unique, -- sha256; entropia alta dispensa bcrypt
+  prefixo       text not null,        -- só para a UI identificar a linha
+  ativo         boolean not null default true,
+  criada_em     timestamptz default now(),
+  ultimo_uso_em timestamptz,
+  revogada_em   timestamptz
+);
+
+-- `00` §5.8 — a pergunta que esta tabela existe para responder:
+-- "quem cancelou esse horário, o agente ou uma pessoa — e em nome de quem?"
+create table agent_audit_log (
+  id             bigserial primary key,
+  org_id         uuid not null,
+  mcp_server     text not null,       -- agenda | agenda-admin
+  tool_name      text not null,       -- nome da tool, ou "METODO /rota"
+  client_id      uuid,                -- agent_credentials.id
+  actor          text,
+  titular        text,                -- em nome de qual cliente (RF-19)
+  args_hash      text,                -- hash dos argumentos, nunca o valor cru
+  resultado      text not null check (resultado in ('ok','erro','recusado')),
+  error_code     text,
+  latencia_ms    int,
+  confirmado_por uuid,
+  created_at     timestamptz default now()
+);
+```
+
+> **`idempotency_keys` ganha `titular` na chave primária** (RF-19). A
+> verificação de idempotência roda antes das guardas de propriedade nos
+> handlers: sem o titular, repetir a `Idempotency-Key` de outra pessoa
+> devolveria o corpo dela sem passar por checagem nenhuma.
+
 **Índices:** `appointments(org_id, resource_id)` · `appointments using gist (periodo)` ·
 `appointments(org_id, cliente_telefone)` · `appointments(series_id)` ·
 `reminders(agendado_para) where enviado_em is null` ·
 `waitlist(org_id, status) where status in ('aguardando','ofertado')` ·
 `channel_messages(org_id, telefone, created_at desc)` ·
-`appointments(external_ref) where external_ref is not null` (idempotência Calendly).
+`appointments(external_ref) where external_ref is not null` (idempotência Calendly) ·
+`agent_credentials(token_hash) where ativo and revogada_em is null` (o caminho quente
+da autenticação) · `agent_audit_log(org_id, created_at desc)`.
 
 ---
 
@@ -721,6 +863,8 @@ POST /waitlist                        # entrar na fila
 POST /waitlist/{id}/aceitar           POST /waitlist/{id}/cancelar
 POST /appointments/recorrentes        # RF-15: cria série + ocorrências
 POST /webhooks/calendly               # RF-16 (assinatura verificada)
+GET  /credenciais/eu                  # RF-18: papel, escopos e titular desta credencial
+GET  /credenciais                     DELETE /credenciais/{id}   # revogar (credenciais:admin)
 GET  /docs                            # RF-17: OpenAPI 3.1 servida por Scalar
 GET  /openapi.json                    # spec exportada (artefato versionado)
 
@@ -728,12 +872,17 @@ GET  /openapi.json                    # spec exportada (artefato versionado)
 POST /canal/enviar                    # sessao|template — template-first
 GET  /canal/templates                 POST /canal/templates
 GET  /canal/mensagens?telefone=
-POST /webhooks/canal/evolution        POST /webhooks/canal/zapi
-POST /webhooks/canal/meta             # pronto para a extensão
+POST /canal/webhook-url/revelar       # o segredo do webhook sai redigido nas leituras
+POST /webhooks/canal/telegram         POST /webhooks/canal/evolution
+POST /webhooks/canal/zapi             POST /webhooks/canal/meta
 ```
 
-Autorização por escopo em toda rota; `canal-service` só aceita chamadas dos
-serviços do programa (credencial service-to-service) — nunca do navegador.
+Autorização por escopo em toda rota (RF-18) — o escopo exigido é declarado na
+própria spec e é a fonte dos escopos das tools MCP. Emitir credencial **não é
+rota**: nasce por linha de comando (`make credencial`). O `canal-service` só
+aceita chamadas dos serviços do programa (credencial service-to-service) —
+nunca do navegador; a única exceção pública é `/webhooks/canal/*`, que drivers
+de nuvem precisam alcançar e o segredo protege.
 
 ---
 
@@ -759,7 +908,8 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
 | T-06 | **Fila de espera** | Ver a fila por serviço/janela: posição, status (aguardando, ofertado, expirado), quem recebeu oferta | `GET /waitlist` (listagem) |
 | T-07 | **Links públicos** | Criar/ativar/desativar links de auto-agendamento; configurar caução (RF-13) | `GET/POST /booking-links` |
 | T-08 | **Integrações** | Conectar/desconectar Google Calendar (botão OAuth + status), gerar/revogar tokens .ics, configurar webhook Calendly | `/integracoes/google/…` · `/ics/tokens` |
-| T-09 | **Canal WhatsApp** | Configurar driver (Evolution/Z-API/Meta), número dedicado, **QR code da Evolution ao vivo**, status da conexão; editar templates de mensagem (versionados) e ver opt-outs | `canal-service` (via backend; nunca direto do navegador) |
+| T-09 | **Canal de conversa** | Configurar driver (Telegram/Evolution/Z-API/Meta), número dedicado ou bot, **QR code da Evolution ao vivo**, status da conexão; editar templates (versionados) e ver opt-outs | `canal-service` (via backend; nunca direto do navegador) |
+| T-11 | **Credenciais de agente** (RF-18) | Emitir credencial escolhendo o papel e ajustando escopos um a um; revogar; ver último uso. O token aparece **uma única vez** | `GET/DELETE /credenciais` |
 | T-10 | **Métricas** | Os números do §4: ocupação, no-show antes/depois do lembrete, entrega de mensagens, agendamentos por origem (conversa, link, Calendly) | agregações de `GET /appointments` + canal |
 
 ### 12.2 Páginas públicas (sem login)
@@ -778,7 +928,11 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
   (polling simples basta; websocket não é requisito).
 - Ações destrutivas na UI (cancelar, desativar link, revogar token) pedem
   confirmação — o mesmo gradiente de risco do agente vale para o humano.
-- T-09 nunca exibe credenciais gravadas (write-only, `00` §4.8).
+- T-09 nunca exibe credenciais gravadas (write-only, `00` §4.8) e mostra a
+  `webhook_url` **redigida** — o segredo nela autentica o inbound, e quem o
+  obtém forja mensagem como qualquer cliente.
+- T-11 mostra o token apenas na criação; depois, só o prefixo. Revogar tem
+  efeito em segundos, sem redeploy.
 - Responsivo o suficiente para o prestador consultar T-02 no celular; a UI de
   cadastro (T-04, T-05) pode assumir desktop.
 - A página pública P-01 funciona sem JavaScript pesado e carrega em < 2 s em 4G
@@ -814,13 +968,41 @@ serviços do programa (credencial service-to-service) — nunca do navegador.
 - **Segurança:** RLS por `org_id` em todas as tabelas (canal incluído);
   rate limit por credencial; webhook com segredo por driver (Calendly incluído);
   rate limit por IP nas rotas públicas (`/agendar/{slug}`, `/ics/{token}.ics`).
+  - **Autoridade por credencial, não por autenticação** (RF-18): autenticar não
+    concede tudo. Escopo é verificado em toda rota, e o escopo declarado na
+    spec é o mesmo cobrado em execução.
+  - **Falhar fechado:** o modo de desenvolvimento aceita identificação simples
+    da organização por header; por isso o padrão da configuração é
+    **produção** — um deploy que esqueça a variável não pode virar porta
+    aberta.
+  - **Segredo de webhook é chave da porta, não configuração**: sai redigido em
+    toda leitura, porque quem o obtém forja mensagem de entrada como qualquer
+    cliente da organização. Revelá-lo é ato explícito.
+  - **Toda ação de agente é auditada** (`agent_audit_log`), com o cliente em
+    nome de quem foi feita.
 
 ---
 
-## 14. Conector MCP — `agenda-mcp`
+## 14. Conectores MCP
 
 > Requisitos transversais em `00-ARQUITETURA-BASE.md` §5. Repete o padrão
 > estabelecido pelo `crm-mcp` no módulo 1.
+
+São **dois** servidores, porque são duas autoridades (RF-18):
+
+| Servidor | Quem usa | Superfície |
+|---|---|---|
+| **`agenda-mcp`** (§14.1–14.4) | agente que atende o **cliente final** | 8 tools de atendimento |
+| **`agenda-admin-mcp`** (§14.5) | agente **da equipe** | 11 tools de operação e configuração |
+
+> **Por que dois e não um.** É a mesma razão de `00` §5.2 ("um servidor por
+> domínio permite conceder acesso parcial"), aplicada um nível abaixo. Com um
+> servidor só, a separação dependeria de o servidor lembrar de checar escopo
+> em cada tool; com dois, as tools administrativas **não existem** no endpoint
+> que o lado de atendimento alcança. E mantém cada catálogo pequeno o bastante
+> para o modelo escolher bem — 19 tools num servidor degradariam a escolha.
+
+#### `agenda-mcp` — o atendimento (§14.1 a §14.4)
 
 **Endpoint:** `https://mcp.SEU-DOMINIO.com/agenda/mcp` · Streamable HTTP
 **Escopos:** `agenda:read` · `agenda:write` · `agenda:cancel`
@@ -935,6 +1117,51 @@ alternativas mais próximas. Não use para ver compromissos já marcados (use ag
 - [ ] Marcar, reagendar e confirmar por conversa, de outro dispositivo, com o
       notebook do aluno desligado
 
+### 14.5 `agenda-admin-mcp` — a equipe operando por conversa
+
+**Endpoint:** `https://mcp.SEU-DOMINIO.com/agenda/admin/mcp` · Streamable HTTP
+**Escopos:** `agenda:read` · `agenda:operacao` · `agenda:admin` · `agenda:cancel` · `credenciais:admin`
+**Auth:** bearer token de `agent_credentials` (RF-18), com escopos por credencial. OAuth 2.1 no roadmap (§18).
+
+> É a alternativa ao painel: o que a equipe faz na UI, faz aqui por conversa.
+> Criar a agenda de um profissional novo, abrir a grade da semana, bloquear
+> férias, olhar o dia, ver quem está na fila.
+
+**Regra inegociável:** o `agenda-admin-mcp` **não tem credencial própria**. Ele
+repassa o bearer de quem o chamou e nunca decide autorização — quem decide é a
+API. Dar-lhe uma credencial de serviço "para simplificar" recriaria exatamente
+o *confused deputy* que o RF-18 eliminou.
+
+| Tool | Escopo | O que faz |
+|---|---|---|
+| `agenda_admin_catalogo` | `agenda:read` | serviços **e** recursos numa chamada |
+| `agenda_admin_servico_salvar` | `agenda:admin` | cria ou altera (id opcional) |
+| `agenda_admin_recurso_salvar` | `agenda:admin` | cria ou altera uma **agenda** |
+| `agenda_admin_grade_ver` | `agenda:operacao` | janelas e bloqueios do recurso |
+| `agenda_admin_grade_definir` | `agenda:admin` | **declarativa**: substitui a semana inteira |
+| `agenda_admin_bloqueio_criar` | `agenda:admin` | férias, feriado, imprevisto |
+| `agenda_admin_bloqueio_remover` | `agenda:admin` | |
+| `agenda_admin_dia` | `agenda:operacao` | os apontamentos de um dia, narrados |
+| `agenda_admin_fila` | `agenda:operacao` | quem espera, posição e ofertas |
+| `agenda_admin_cancelar` | `agenda:cancel` | elicitation antes de executar |
+| `agenda_admin_credenciais_listar` | `credenciais:admin` | **só leitura** — emitir nunca é tool |
+
+> **Por que `grade_definir` é declarativa.** A alternativa (listar → remover uma
+> → criar duas) é justamente a sequência em que o modelo erra: esquece um
+> passo e deixa a grade num estado que ninguém pediu. Substituir a semana
+> inteira numa chamada atômica elimina três tools *e* um modo de falha.
+
+**Critérios de aceite**
+- Credencial de papel `atendimento` conectada a este servidor **não executa
+  tool nenhuma de escrita** — e a recusa explica qual escopo falta.
+- Token de outra organização não vê dado algum (RLS é a última linha).
+- Emitir credencial **não é tool**: `agenda_admin_credenciais_listar` só lê.
+- `agenda_admin_cancelar` usa elicitation; onde o cliente não suportar, cai no
+  `confirmation_token` que a API já emite.
+- Toda tool call vira uma linha em `agent_audit_log`.
+- Aceite de aula: criar uma agenda nova (recurso + grade da semana) e conferir
+  o resultado na tela T-02, **inteiramente por conversa**.
+
 ---
 
 ## 15. Demo final do módulo (critério de conclusão)
@@ -990,14 +1217,16 @@ Se qualquer passo exigir abrir um sistema manualmente, o módulo não está conc
 | 3 | Motor de slots (`GET /slots`) + constraint anti-double-booking |
 | 4 | Agendamento, reagendamento atômico, cancelamento + **recorrência simples** (RF-15) |
 | 5 | **OpenAPI + Scalar** (RF-17): contrato revisado, com exemplos, publicado em `/docs` — antes das integrações, porque é o contrato que elas consomem |
-| 6 | **`canal-service`**: drivers Evolution + Z-API, templates, inbound, opt-out |
+| 6 | **`canal-service`**: drivers Telegram + Evolution + Z-API, templates, inbound, opt-out |
 | 7 | Job de lembretes via canal + espelho no Gestor de Tarefas + **fila de espera** (RF-14) |
 | 8 | **Google Calendar: push + busy-read** (RF-12) + feed .ics (RF-11) + **link público** (RF-13) + webhook Calendly (RF-16) |
-| 9 | **Conector MCP `agenda-mcp`** (§14) + linguagem natural de datas + **demo final** |
+| 9 | **Papéis, escopos e credenciais** (RF-18) + **isolamento do atendimento** (RF-19) + **`agenda-admin-mcp`** (§14.5) — a equipe operando por conversa |
+| 10 | **Conector MCP `agenda-mcp`** de atendimento (§14.1–14.4) + linguagem natural de datas + **demo final** |
 
 As **telas (§12) nascem junto com a etapa da sua rota, nunca antes** — é o
 API-first na prática: T-04/T-05 na etapa 2, T-02/T-03 na etapa 4, T-09 na 6,
-T-06 na 7, T-07/T-08 e a página pública P-01 na 8, T-10 fecha com a demo.
+T-06 na 7, T-07/T-08 e a página pública P-01 na 8, T-11 na 9, T-10 fecha com
+a demo.
 
 ## 18. Roadmap (pós-programa)
 
@@ -1008,6 +1237,8 @@ Extensões registradas, em ordem aproximada de valor para o autônomo:
 | **Sinal/caução via Pix no link público** | A medida mais eficaz contra no-show (reduções de 60–80% relatadas pelo mercado); a configuração já existe em `booking_links` (RF-13) | Cobrança com liquidação real está fora do programa (`00` §4.7) |
 | **API oficial da Meta (WhatsApp Cloud API)** | Canal sem risco de banimento; templates já nascem `aprovado_meta`-ready (RF-10) | Verificação de negócio + custo por conversa; interface e aula já preparam a troca |
 | **Pacotes de sessões** | "10 sessões de fisioterapia" com saldo — comum em serviços recorrentes | Recorrência simples (RF-15) cobre o essencial; pacote adiciona controle financeiro que conversa com o M4 |
+| **OAuth 2.1 nos conectores MCP** | Substitui o bearer de `agent_credentials` por OAuth completo (`00` §5.4): PKCE, Protected Resource Metadata, resource indicators | O modelo de papéis e escopos (RF-18) já está no lugar; trocar o mecanismo de emissão do token não muda quem pode o quê. Entregar autoridade antes de cerimônia foi a escolha deliberada |
+| **Rate limit por credencial** | 60 req/min e teto de escritas/hora por credencial (`00` §5.9) | Sem ele, credencial de atendimento vazada enumera clientes um a um. A tabela de credenciais já dá a base |
 | **Sincronização bidirecional Google** | Editar no Google reflete na agenda | Webhooks + sync tokens + resolução de conflito consumiriam o módulo; push + busy-read entregam o valor central |
 | **Hold temporário de slot** | Reserva durante a escolha | Estado que expira; a fila de espera e as alternativas cobrem o caso |
 | **Outras plataformas de booking** | Importar de além do Calendly | Uma integração externa basta para ensinar o padrão |

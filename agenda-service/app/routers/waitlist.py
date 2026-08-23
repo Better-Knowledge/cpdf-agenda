@@ -96,7 +96,7 @@ def entrar(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     servico = carregar_servico(db, cred.org_id, dados.service_id)
     if dados.resource_id is not None:
@@ -130,7 +130,7 @@ def entrar(
         )
 
     corpo = _saida(entrada, posicao=_posicao(db, entrada), avisos=avisos)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
 
@@ -231,7 +231,7 @@ def aceitar(
     db: Session = Depends(get_db),
 ):
     exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     entrada = _carregar(db, cred, entry_id)
 
@@ -269,6 +269,6 @@ def aceitar(
     )
     entrada.status = "aceito"
     corpo = _out(ap)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 200, cred.titular)
     db.commit()
     return corpo
