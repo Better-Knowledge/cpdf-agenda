@@ -32,12 +32,19 @@ conector MCP. O canal nasce aqui e é consumido pelos módulos 03 e 04.
   passa nos três, inclusive num canal que não usa telefone.
 - **Endereço do cliente** é por canal: E.164 no WhatsApp, `tg:<chat_id>` no Telegram.
   O campo `telefone` significa "endereço neste canal" — nunca assuma número.
+  Sempre compare endereços por `enderecos.normalizar()`, nunca as strings cruas:
+  desde o RF-19 essa comparação decide acesso.
 - **Autoridade vem da credencial, não da autenticação** (RF-18): autenticar não
   concede tudo. Agente de atendimento (canal) e agente administrativo (MCP) têm
   escopos diferentes, e `exigir_escopo` de fato barra. O escopo declarado no
   OpenAPI é o mesmo cobrado em execução — não deixe divergir.
 - **`credenciais:admin` nunca entra em preset de credencial de agente**: só
   humano por JWT emite credencial. Emitir não é rota — é `make credencial`.
+- **O titular é cunhado onde o endereço é provado** (RF-19): dentro do
+  `canal-service`, depois do `compare_digest` do token de webhook, e viaja
+  assinado (`ats_…`, HMAC, 30 min). Nenhum serviço declara por quem age —
+  header auto-declarado é o ator restringido definindo a própria restrição.
+  Compromisso de outro titular responde **404**, nunca 403.
 
 ## Convenções do programa
 - Toda tabela: `org_id uuid not null` + RLS `org_id = auth.jwt() ->> 'org_id'`

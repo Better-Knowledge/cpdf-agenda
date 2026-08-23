@@ -5,13 +5,14 @@
 Inteligentes** (CPDF). Marcar, remarcar, confirmar e cancelar pelo WhatsApp,
 com lembretes que disparam com o notebook desligado.
 
-**Status:** etapas 1–7 do plano §17, mais a fundação de papéis (etapa 9 em
+**Status:** etapas 1–7 do plano §17, mais a separação de papéis (etapa 9 em
 curso) — schema com RLS e constraint anti-double-booking, motor de slots,
 agendamento/reagendamento/cancelamento, recorrência, contrato OpenAPI com
 exemplos, UI do prestador, canal ligado a WhatsApp e Telegram reais, agente
-respondendo o inbound, fila de espera, risco de no-show e **autoridade por
-credencial** (RF-18). Faltam: isolamento por titular (RF-19), espelho de
-tarefas, Google Calendar, .ics, link público, Calendly e os conectores MCP.
+respondendo o inbound, fila de espera, risco de no-show, **autoridade por
+credencial** (RF-18) e **isolamento por titular** (RF-19). Faltam: superfície
+administrativa completa, espelho de tarefas, Google Calendar, .ics, link
+público, Calendly e os conectores MCP.
 
 ## O que este módulo entrega
 - Serviços, grade de disponibilidade e motor de slots sem double-booking

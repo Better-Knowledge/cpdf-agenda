@@ -6,9 +6,12 @@ agente administrativo (o da equipe, via MCP) não têm a mesma autoridade. Até
 aqui tinham — `ESCOPOS_PADRAO` era o default de toda credencial e
 `exigir_escopo` nunca barrava ninguém.
 
-Quatro formas de credencial, todas resolvendo para (org_id, escopos, ator):
+Cinco formas de credencial, todas resolvendo para (org_id, escopos, ator):
 - **Bearer `agk_…`** — credencial de `agent_credentials`, com escopos próprios
   e revogável. É o caminho preferido, e o que o MCP administrativo usa;
+- **Bearer `ats_…`** — token de sessão de atendimento (RF-19): traz um
+  `titular` assinado e restringe a credencial ao cliente daquela conversa.
+  Cunhado pelo canal-service, nunca aqui;
 - **Bearer JWT do Supabase** — humano/UI. Só o humano recebe `credenciais:admin`;
 - **`X-Agent-Key`** — a UI hoje; resolve no banco primeiro, cai no env (legado);
 - **`X-Service-Key`** e **`X-Org-Id`** (só em dev) — legados service-to-service.
@@ -74,6 +77,9 @@ ESCOPOS_HUMANO = PAPEIS["administrativo"] | {ESCOPO_CREDENCIAIS}
 ESCOPOS_LEGADO = ESCOPOS_HUMANO
 
 PREFIXO_TOKEN = "agk_"
+# Espelha `sessao_atendimento.PREFIXO`. Duplicado de propósito: aquele módulo
+# importa `PAPEIS` daqui, e um import no topo fecharia o ciclo.
+PREFIXO_SESSAO = "ats_"
 
 
 @dataclass(frozen=True)
@@ -199,6 +205,25 @@ def _do_jwt(token: str) -> Credencial:
     return Credencial(org_id=UUID(org), escopos=ESCOPOS_HUMANO, nome="humano")
 
 
+def _da_sessao_atendimento(token: str) -> Credencial:
+    """Token cunhado pelo canal: o `titular` vem assinado, não declarado.
+
+    A partir daqui a credencial não é mais "um agente da organização X" e sim
+    "um agente falando por FULANO na organização X" — e as guardas de
+    propriedade (`_carregar`) têm em que se apoiar.
+    """
+    from .sessao_atendimento import validar
+
+    sessao = validar(token)
+    return Credencial(
+        org_id=sessao.org_id,
+        escopos=sessao.escopos,
+        ator="agente",
+        titular=sessao.titular,
+        nome="atendimento",
+    )
+
+
 def credencial_atual(request: Request) -> Credencial:
     cfg = settings()
 
@@ -209,6 +234,8 @@ def credencial_atual(request: Request) -> Credencial:
             if cred := _resolver_credencial(token):
                 return cred
             raise _nao_autenticado("token desconhecido ou revogado")
+        if token.startswith(PREFIXO_SESSAO):
+            return _da_sessao_atendimento(token)
         return _do_jwt(token)
 
     # A UI manda X-Agent-Key. Banco primeiro; o env continua valendo enquanto
@@ -229,6 +256,15 @@ def credencial_atual(request: Request) -> Credencial:
         org = request.headers.get("X-Org-Id")
         if not org:
             raise _nao_autenticado("X-Service-Key sem X-Org-Id")
+        if cfg.atendimento_isolado:
+            # A virada do RF-19. Enquanto a flag esteve desligada, esta chave
+            # valia como autoridade total sobre a organização inteira — que é
+            # exatamente o que o isolamento existe para acabar. Ligada, o
+            # caminho fecha: quem atende cliente usa token de sessão.
+            raise _nao_autenticado(
+                "X-Service-Key não vale mais na agenda (ATENDIMENTO_ISOLADO=1). "
+                "Use o token de sessão que o canal cunha a cada mensagem."
+            )
         log.warning("auth legada: X-Service-Key — migre para token de sessão de atendimento")
         return Credencial(org_id=UUID(org), escopos=ESCOPOS_LEGADO, ator="agente")
 

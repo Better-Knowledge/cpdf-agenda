@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # caminho /webhooks/canal/ é exposto — o resto do canal continua fechado.
     webhook_base_url_publica: str = ""
 
+    # RF-19 — segredo do token de sessão de atendimento, COMPARTILHADO com o
+    # agenda-service. O canal é quem cunha: aqui, e só aqui, o endereço do
+    # cliente é provado (pelo token do webhook), e não apenas afirmado.
+    sessao_atendimento_secret: str = ""
+
     # Para onde o inbound normalizado segue (PRD §9.1): o agente/orquestrador.
     # Vazio = só registra (comportamento anterior). O canal não pensa — entrega.
     orquestrador_url: str = ""

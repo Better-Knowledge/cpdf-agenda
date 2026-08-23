@@ -439,8 +439,10 @@ administrador ajusta uma a uma.
   definindo a própria restrição.
 - Compromisso de outro titular responde **404**, não 403: 403 confirmaria que
   aquele compromisso existe.
-- `POST /appointments` e `POST /waitlist` gravam o titular da credencial —
-  ignorando divergência no corpo.
+- `POST /appointments`, `POST /waitlist` e `POST /appointments/recorrentes`
+  gravam o endereço **normalizado** do titular e **recusam** (403
+  `TITULAR_DIVERGENTE`) um corpo que peça outro cliente. Sobrescrever em
+  silêncio esconderia o engano: o agente acharia que agendou para quem pediu.
 - `GET /waitlist` devolve **apenas** as entradas do titular; a filtragem é do
   servidor, nunca do cliente.
 - Sem `agenda:operacao`, a saída **omite** `risco_no_show`, `risco_detalhe` e
@@ -450,7 +452,17 @@ administrador ajusta uma a uma.
   verificação de idempotência precede as guardas de propriedade.
 - Endereços são normalizados na escrita e na comparação: `+5511998765432` e
   `+55 11 99876-5432` são o mesmo cliente, e tratá-los como diferentes
-  deixaria a pessoa sem acesso ao próprio horário.
+  deixaria a pessoa sem acesso ao próprio horário. A migration de backfill
+  normaliza o que já está gravado.
+- O token de sessão tem **domínio de assinatura próprio**, separado do
+  `confirmation_token`: os dois usam HMAC, e sem essa separação um serviria
+  como o outro sempre que os segredos coincidissem.
+- Os escopos viajam assinados no token, mas o servidor **apara no teto** do
+  papel `atendimento` — nenhuma cunhagem alcança rota administrativa.
+- A virada é configuração (`ATENDIMENTO_ISOLADO`): com a flag desligada a
+  chave de serviço legada ainda vale, o que permite subir agenda, canal e
+  agente em ordem qualquer; ligada, ela deixa de conceder a organização
+  inteira e todo atendimento passa pelo token.
 
 ---
 

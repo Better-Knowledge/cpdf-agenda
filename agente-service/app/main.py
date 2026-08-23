@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import fluxo
+from .clientes import Sessao
 from .config import settings
 
 logging.basicConfig(level=settings().log_level)
@@ -37,6 +38,11 @@ class InboundIn(BaseModel):
     texto: str
     message_id: str | None = None
     timestamp: str | None = None
+    # RF-19: a autoridade do agente na agenda nesta conversa. Cunhado pelo
+    # canal depois de provar o endereço; opcional só enquanto houver canal
+    # antigo em produção, e é a flag ATENDIMENTO_ISOLADO na agenda que fecha
+    # o caminho de quem não manda.
+    sessao: str | None = None
 
 
 def _autenticado(request: Request) -> bool:
@@ -60,7 +66,9 @@ def health() -> dict:
     summary="Mensagem do cliente, normalizada pelo canal",
     description=(
         "Chamado pelo canal-service depois de registrar a mensagem. Opt-out já foi "
-        "tratado por regra antes de chegar aqui — o agente nunca decide sobre isso."
+        "tratado por regra antes de chegar aqui — o agente nunca decide sobre isso. "
+        "O campo `sessao` traz o token que dá ao agente autoridade sobre ESTE "
+        "cliente na agenda, e sobre mais ninguém (RF-19)."
     ),
 )
 def inbound(dados: InboundIn, request: Request):
@@ -74,8 +82,14 @@ def inbound(dados: InboundIn, request: Request):
                 "retryable": False,
             },
         )
+    sessao = Sessao(org_id=dados.org_id, telefone=dados.telefone, token=dados.sessao)
+    if not sessao.isolada:
+        log.warning(
+            "inbound sem token de sessão (canal antigo) — o agente agirá com a "
+            "chave de serviço, sem isolamento por cliente"
+        )
     try:
-        resultado = fluxo.tratar(dados.org_id, dados.telefone, dados.texto)
+        resultado = fluxo.tratar(sessao, dados.texto)
     except Exception:
         # Nunca devolve 5xx ao canal: a mensagem já está registrada lá e o
         # humano vê a conversa de qualquer forma.

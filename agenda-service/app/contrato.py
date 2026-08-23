@@ -95,6 +95,32 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "SESSAO_INVALIDA": (
+        401,
+        "Token de sessão de atendimento inválido ou expirado",
+        {
+            "code": "SESSAO_INVALIDA",
+            "message": "Token de sessão de atendimento inválido: expirado",
+            "hint": (
+                "O token é cunhado pelo canal a cada mensagem do cliente e vale 30 "
+                "minutos. Aguarde a próxima mensagem em vez de reaproveitar o antigo."
+            ),
+            "retryable": False,
+        },
+    ),
+    "TITULAR_DIVERGENTE": (
+        403,
+        "A sessão de atendimento fala por outro cliente",
+        {
+            "code": "TITULAR_DIVERGENTE",
+            "message": "Esta sessão de atendimento não fala pelo cliente informado.",
+            "hint": (
+                "O token de sessão é cunhado pelo canal para o cliente que escreveu. "
+                "Omita `cliente_telefone` ou use o endereço da conversa."
+            ),
+            "retryable": False,
+        },
+    ),
     "PERIODO_INVALIDO": (
         400,
         "Fim antes do início",
@@ -246,7 +272,9 @@ _DESCRICAO_STATUS = {
 }
 
 # Todo endpoint autenticado pode devolver estes três.
-_BASE = ("NAO_AUTENTICADO", "ESCOPO_INSUFICIENTE", "PAYLOAD_INVALIDO")
+# SESSAO_INVALIDA é de base porque um token de atendimento expirado derruba
+# QUALQUER rota — a sessão vale 30 min e a conversa costuma durar mais.
+_BASE = ("NAO_AUTENTICADO", "SESSAO_INVALIDA", "ESCOPO_INSUFICIENTE", "PAYLOAD_INVALIDO")
 
 
 def respostas(*codes: str) -> dict[int | str, dict[str, Any]]:

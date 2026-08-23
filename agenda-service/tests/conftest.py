@@ -23,6 +23,7 @@ TEST_URL = f"postgresql+psycopg://agenda_app:agenda_app@{_HOSTPORT}/agenda_test"
 os.environ["DATABASE_URL"] = TEST_URL
 os.environ["APP_ENV"] = "dev"
 os.environ.setdefault("SUPABASE_JWT_SECRET", "segredo-de-teste")
+os.environ.setdefault("SESSAO_ATENDIMENTO_SECRET", "segredo-de-sessao-teste")
 os.environ.setdefault("ANTECEDENCIA_MINIMA_MIN", "0")
 
 

@@ -31,10 +31,14 @@ def agenda_falsa(monkeypatch):
             self.fila: list[dict] = []
             self.aceite: tuple[int, dict] | None = None
             self.chamadas: list[tuple[str, str]] = []
+            self.sessoes: list = []
             self.respostas: list[str] = []
 
-        def agenda(self, metodo, rota, org_id, corpo=None):
+        def agenda(self, metodo, rota, sessao, corpo=None):
+            # Guarda a sessão junto: os testes de isolamento verificam que o
+            # agente chamou a agenda COM o token, e não com a chave do serviço.
             self.chamadas.append((metodo, rota))
+            self.sessoes.append(sessao)
             if rota.startswith("/appointments/proximo"):
                 return (200, self.compromisso) if self.compromisso else (404, {"code": "NAO_ENCONTRADO"})
             if rota.startswith("/slots"):
@@ -47,7 +51,7 @@ def agenda_falsa(monkeypatch):
                 return self.aceite or (200, {**(self.compromisso or {}), "id": "novo"})
             return 200, {}
 
-        def responder(self, org_id, telefone, texto):
+        def responder(self, sessao, texto):
             self.respostas.append(texto)
 
     falsa = Falsa()
