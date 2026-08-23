@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import Credencial, credencial_atual, exigir_escopo
 from ..booking import carregar_servico, recursos_do_servico, slots_do_recurso
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..errors import NaoEncontrado
 from ..schemas import SlotOut
@@ -27,6 +28,8 @@ router = APIRouter(tags=["slots"])
         "nunca responda apenas 'indisponível'. Não use para ver compromissos já "
         "marcados (use GET /agenda/day)."
     ),
+    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO"),
+    openapi_extra=operacao("agenda:read"),
 )
 def consultar_slots(
     service_id: UUID,

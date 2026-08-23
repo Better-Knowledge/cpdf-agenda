@@ -16,10 +16,18 @@ from ..booking import (
     reagendar,
     recursos_do_servico,
 )
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..errors import ApiError, NaoEncontrado
 from ..models import Appointment, AppointmentHistory
-from ..schemas import AppointmentIn, AppointmentOut, CancelIn, RescheduleIn
+from ..schemas import (
+    AgendaDiaOut,
+    AppointmentIn,
+    AppointmentOut,
+    CancelIn,
+    HistoricoOut,
+    RescheduleIn,
+)
 from ..tempo import TZ, label_humano
 
 router = APIRouter(tags=["agendamentos"])
@@ -65,6 +73,8 @@ def _carregar(db: Session, cred: Credencial, appointment_id: UUID) -> Appointmen
         "Horário ocupado responde 409 SLOT_INDISPONIVEL com as 3 alternativas mais "
         "próximas já no payload. Aceita Idempotency-Key (obrigatório para agentes)."
     ),
+    responses=respostas("NAO_ENCONTRADO", "SLOT_INDISPONIVEL", "DATA_SEM_FUSO"),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def agendar(
     dados: AppointmentIn,
@@ -123,6 +133,10 @@ def agendar(
         "muda (RF-06). Conflito responde 409 com alternativas. O compromisso volta ao "
         "status 'agendado' — a confirmação anterior não vale para o novo horário."
     ),
+    responses=respostas(
+        "NAO_ENCONTRADO", "SLOT_INDISPONIVEL", "STATUS_INCOMPATIVEL", "DATA_SEM_FUSO"
+    ),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def reagendar_endpoint(
     appointment_id: UUID,
@@ -161,6 +175,13 @@ def reagendar_endpoint(
         "min). O slot volta para a grade na hora — a fila de espera (RF-14) será "
         "notificada quando a etapa 7 ligar o job."
     ),
+    responses=respostas(
+        "NAO_ENCONTRADO",
+        "CONFIRMACAO_NECESSARIA",
+        "CONFIRMACAO_INVALIDA",
+        "CONFIRMACAO_EXPIRADA",
+    ),
+    openapi_extra=operacao("agenda:cancel", idempotente=True),
 )
 def cancelar(
     appointment_id: UUID,
@@ -209,6 +230,9 @@ def cancelar(
     "/appointments/{appointment_id}/confirm",
     response_model=AppointmentOut,
     summary="Marca o compromisso como confirmado pelo cliente",
+    description="Use quando o cliente responder 'sim' à confirmação. Só compromissos 'agendado' aceitam.",
+    responses=respostas("NAO_ENCONTRADO", "STATUS_INCOMPATIVEL"),
+    openapi_extra=operacao("agenda:write"),
 )
 def confirmar(
     appointment_id: UUID,
@@ -234,6 +258,8 @@ def confirmar(
     "/appointments/{appointment_id}/no-show",
     response_model=AppointmentOut,
     summary="Registra falta do cliente (alimenta o histórico de risco — IA-03)",
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:write"),
 )
 def no_show(
     appointment_id: UUID,
@@ -252,6 +278,9 @@ def no_show(
     "/appointments",
     response_model=list[AppointmentOut],
     summary="Lista compromissos por data e recurso",
+    description="Todos os status, na ordem do dia. Para checar disponibilidade use GET /slots.",
+    responses=respostas(),
+    openapi_extra=operacao("agenda:read"),
 )
 def listar(
     data: date = Query(alias="date"),
@@ -275,12 +304,15 @@ def listar(
 
 @router.get(
     "/agenda/day",
+    response_model=AgendaDiaOut,
     summary="Agenda do dia, narrada para o agente",
     description=(
         "Visão consolidada em linguagem clara: compromissos com status e risco, na "
         "ordem do dia. Use para responder 'como está meu dia?' — não para checar "
         "disponibilidade (use GET /slots)."
     ),
+    responses=respostas(),
+    openapi_extra=operacao("agenda:read"),
 )
 def agenda_do_dia(
     data: date = Query(alias="date"),
@@ -305,7 +337,10 @@ def agenda_do_dia(
 
 @router.get(
     "/appointments/{appointment_id}/history",
+    response_model=list[HistoricoOut],
     summary="Histórico de alterações do compromisso (quem, quando, por quê)",
+    responses=respostas("NAO_ENCONTRADO"),
+    openapi_extra=operacao("agenda:read"),
 )
 def historico(
     appointment_id: UUID,

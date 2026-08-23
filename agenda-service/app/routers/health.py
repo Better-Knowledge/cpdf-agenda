@@ -3,10 +3,14 @@ from sqlalchemy import text
 
 from ..db import engine
 
-router = APIRouter(tags=["operacao"])
+router = APIRouter(tags=["saúde"])
 
 
-@router.get("/health", summary="Liveness/readiness do serviço")
+@router.get(
+    "/health",
+    summary="Liveness/readiness do serviço",
+    description="Sem autenticação. `banco: fora` indica degradação — a API responde, o Postgres não.",
+)
 def health() -> dict:
     try:
         with engine.connect() as conn:

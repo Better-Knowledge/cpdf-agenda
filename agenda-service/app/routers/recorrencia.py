@@ -21,10 +21,17 @@ from ..booking import (
     gerar_ocorrencias,
     recursos_do_servico,
 )
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..errors import ApiError, NaoEncontrado
 from ..models import Appointment, RecurrenceSeries
-from ..schemas import ConflitoOcorrencia, RecurrenceIn, RecurrenceOut, SeriesCancelIn
+from ..schemas import (
+    ConflitoOcorrencia,
+    RecurrenceIn,
+    RecurrenceOut,
+    SerieCanceladaOut,
+    SeriesCancelIn,
+)
 from ..tempo import TZ, label_humano
 from .appointments import _out
 
@@ -43,6 +50,8 @@ router = APIRouter(tags=["recorrência"])
         "série: volta em `conflitos`, já com as 3 alternativas — ofereça-as ao cliente "
         "e agende com POST /appointments. Aceita Idempotency-Key."
     ),
+    responses=respostas("NAO_ENCONTRADO", "DATA_SEM_FUSO"),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_serie(
     dados: RecurrenceIn,
@@ -126,6 +135,14 @@ def criar_serie(
         "Ocorrências passadas ou já realizadas não mudam; os slots futuros voltam "
         "para a grade na hora."
     ),
+    response_model=SerieCanceladaOut,
+    responses=respostas(
+        "NAO_ENCONTRADO",
+        "CONFIRMACAO_NECESSARIA",
+        "CONFIRMACAO_INVALIDA",
+        "CONFIRMACAO_EXPIRADA",
+    ),
+    openapi_extra=operacao("agenda:cancel", idempotente=True),
 )
 def cancelar_serie(
     series_id: UUID,

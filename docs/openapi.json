@@ -1,0 +1,4654 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agenda Inteligente — agenda-service",
+    "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <jwt do Supabase>` (humanos/UI) ou `X-Agent-Key`\n(agentes — fase 1 do conector). Escopos: `agenda:read` (consultar),\n`agenda:write` (criar/alterar), `agenda:cancel` (cancelar). Cada rota declara\no escopo que exige.\n",
+    "version": "0.2.0"
+  },
+  "servers": [
+    {
+      "url": "https://cpdf-agenda.better-knowledge.com",
+      "description": "Protótipo do programa"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "saúde"
+        ],
+        "summary": "Liveness/readiness do serviço",
+        "description": "Sem autenticação. `banco: fora` indica degradação — a API responde, o Postgres não.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/services": {
+      "get": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Lista os serviços da organização",
+        "description": "**Escopo:** `agenda:read`\n\nUse antes de consultar slots ou agendar: o service_id daqui é obrigatório nas demais chamadas. Paginação por limit/cursor.",
+        "operationId": "listar_services_services_get",
+        "parameters": [
+          {
+            "name": "ativo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Ativo"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_ServiceOut_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CURSOR_INVALIDO": {
+                    "summary": "Cursor de paginação não reconhecido",
+                    "value": {
+                      "code": "CURSOR_INVALIDO",
+                      "message": "O cursor de paginação não foi reconhecido.",
+                      "hint": "Use exatamente o next_cursor devolvido pela página anterior.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      },
+      "post": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Cadastra um serviço",
+        "description": "**Escopo:** `agenda:write`\n\nNome, duração em minutos, preço (string decimal, BRL) e buffers. Alterar a duração depois não muda agendamentos já existentes (RF-01). Aceita Idempotency-Key.",
+        "operationId": "criar_service_services_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      }
+    },
+    "/services/{service_id}": {
+      "patch": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Altera um serviço (parcial)",
+        "description": "**Escopo:** `agenda:write`\n\nSó os campos enviados mudam. Alterar a duração NÃO altera agendamentos já existentes (RF-01) — só afeta slots e agendamentos futuros. resource_ids, quando enviado, substitui os vínculos atuais.",
+        "operationId": "alterar_service_services__service_id__patch",
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Service Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      },
+      "delete": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Desativa um serviço (soft delete)",
+        "description": "**Escopo:** `agenda:write`\n\nEntidade de negócio não é apagada: o serviço sai do catálogo e da oferta de slots, mas agendamentos e histórico existentes ficam intactos. Reative com PATCH {ativo: true}. Idempotente.",
+        "operationId": "desativar_service_services__service_id__delete",
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Service Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/resources": {
+      "get": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Lista profissionais, salas e equipamentos ativos",
+        "operationId": "listar_resources_resources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_ResourceOut_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      },
+      "post": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Cadastra um recurso (profissional, sala, equipamento)",
+        "description": "**Escopo:** `agenda:write`\n\nO recurso é o que não pode ser agendado duas vezes no mesmo horário. Aceita Idempotency-Key.",
+        "operationId": "criar_resource_resources_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      }
+    },
+    "/availability/rules": {
+      "post": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Adiciona janela de trabalho semanal a um recurso",
+        "description": "**Escopo:** `agenda:write`\n\ndia_semana: 0=segunda … 6=domingo. Horas em hora local America/Sao_Paulo (RF-02). Aceita Idempotency-Key.",
+        "operationId": "criar_rule_availability_rules_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Grade semanal da organização",
+        "operationId": "listar_rules_availability_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RuleOut"
+                  },
+                  "title": "Response Listar Rules Availability Rules Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      }
+    },
+    "/availability/rules/{rule_id}": {
+      "patch": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Altera uma janela da grade semanal",
+        "description": "**Escopo:** `agenda:write`\n\nSó os campos enviados mudam. A alteração vale para os slots futuros na hora.",
+        "operationId": "alterar_rule_availability_rules__rule_id__patch",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PERIODO_INVALIDO": {
+                    "summary": "Fim antes do início",
+                    "value": {
+                      "code": "PERIODO_INVALIDO",
+                      "message": "O fim do bloqueio precisa ser depois do início.",
+                      "hint": "Inverta os valores ou confira o offset de fuso.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      },
+      "delete": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Remove uma janela da grade semanal",
+        "description": "**Escopo:** `agenda:write`\n\nExclusão real: grade é configuração, não histórico. O motor de slots deixa de oferecer os horários desta janela imediatamente; agendamentos já feitos não mudam. Idempotente: remover de novo devolve o mesmo resultado.",
+        "operationId": "remover_rule_availability_rules__rule_id__delete",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemocaoRegraOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/availability/blocks/{block_id}": {
+      "delete": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Remove um bloqueio pontual",
+        "description": "**Escopo:** `agenda:write`\n\nExclusão real: os horários do período voltam a ser ofertados na hora. Idempotente.",
+        "operationId": "remover_block_availability_blocks__block_id__delete",
+        "parameters": [
+          {
+            "name": "block_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Block Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemocaoBloqueioOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/availability/blocks": {
+      "get": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Bloqueios pontuais vigentes ou futuros",
+        "description": "**Escopo:** `agenda:read`\n\nLista bloqueios cujo fim ainda não passou. Filtre por recurso se quiser.",
+        "operationId": "listar_blocks_availability_blocks_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlockOut"
+                  },
+                  "title": "Response Listar Blocks Availability Blocks Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      },
+      "post": {
+        "tags": [
+          "grade"
+        ],
+        "summary": "Bloqueia um período pontual (feriado, almoço, férias)",
+        "description": "**Escopo:** `agenda:write`\n\nInício e fim em ISO 8601 com offset. O motivo aparece na agenda do dia. Aceita Idempotency-Key.",
+        "operationId": "criar_block_availability_blocks_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PERIODO_INVALIDO": {
+                    "summary": "Fim antes do início",
+                    "value": {
+                      "code": "PERIODO_INVALIDO",
+                      "message": "O fim do bloqueio precisa ser depois do início.",
+                      "hint": "Inverta os valores ou confira o offset de fuso.",
+                      "retryable": false
+                    }
+                  },
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      }
+    },
+    "/slots": {
+      "get": {
+        "tags": [
+          "slots"
+        ],
+        "summary": "Horários realmente livres para um serviço",
+        "description": "**Escopo:** `agenda:read`\n\nMotor de disponibilidade (RF-02): desconta duração, buffers, bloqueios e agendamentos existentes. Chame SEMPRE antes de tentar agendar e sempre que o cliente mencionar um dia ou período ('quinta de tarde'). Converta a expressão em um intervalo ISO 8601 com offset (America/Sao_Paulo) antes de chamar. Retorno vazio: amplie o intervalo e ofereça as 3 alternativas mais próximas — nunca responda apenas 'indisponível'. Não use para ver compromissos já marcados (use GET /agenda/day).",
+        "operationId": "consultar_slots_slots_get",
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Service Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Início do intervalo, ISO 8601 com offset",
+              "title": "From"
+            },
+            "description": "Início do intervalo, ISO 8601 com offset"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Fim do intervalo, ISO 8601 com offset",
+              "title": "To"
+            },
+            "description": "Fim do intervalo, ISO 8601 com offset"
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opcional: recurso específico",
+              "title": "Resource Id"
+            },
+            "description": "Opcional: recurso específico"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SlotOut"
+                  },
+                  "title": "Response Consultar Slots Slots Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      }
+    },
+    "/appointments": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Agenda um horário",
+        "description": "**Escopo:** `agenda:write`\n\nExige serviço + horário + cliente identificado (nome e telefone) — RF-03. Sem resource_id, usa o primeiro recurso do serviço com o slot livre. Horário ocupado responde 409 SLOT_INDISPONIVEL com as 3 alternativas mais próximas já no payload. Aceita Idempotency-Key (obrigatório para agentes).",
+        "operationId": "agendar_appointments_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "SLOT_INDISPONIVEL": {
+                    "summary": "Horário ocupado — alternativas já no payload",
+                    "value": {
+                      "code": "SLOT_INDISPONIVEL",
+                      "message": "O horário pedido já está ocupado ou fora da grade.",
+                      "hint": "Ofereça estas alternativas ao cliente: quinta, 27 de agosto, 15h30 · quinta, 27 de agosto, 16h30 · sexta, 28 de agosto, 9h.",
+                      "retryable": false,
+                      "alternativas": [
+                        {
+                          "inicio": "2026-08-27T15:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 15h30"
+                        },
+                        {
+                          "inicio": "2026-08-27T16:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 16h30"
+                        },
+                        {
+                          "inicio": "2026-08-28T09:00:00-03:00",
+                          "label_humano": "sexta, 28 de agosto, 9h"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Lista compromissos por data e recurso",
+        "description": "**Escopo:** `agenda:read`\n\nTodos os status, na ordem do dia. Para checar disponibilidade use GET /slots.",
+        "operationId": "listar_appointments_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppointmentOut"
+                  },
+                  "title": "Response Listar Appointments Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      }
+    },
+    "/appointments/{appointment_id}/reschedule": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Reagenda de forma atômica",
+        "description": "**Escopo:** `agenda:write`\n\nOu o novo horário é reservado e o antigo liberado na mesma transação, ou nada muda (RF-06). Conflito responde 409 com alternativas. O compromisso volta ao status 'agendado' — a confirmação anterior não vale para o novo horário.",
+        "operationId": "reagendar_endpoint_appointments__appointment_id__reschedule_post",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescheduleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "SLOT_INDISPONIVEL": {
+                    "summary": "Horário ocupado — alternativas já no payload",
+                    "value": {
+                      "code": "SLOT_INDISPONIVEL",
+                      "message": "O horário pedido já está ocupado ou fora da grade.",
+                      "hint": "Ofereça estas alternativas ao cliente: quinta, 27 de agosto, 15h30 · quinta, 27 de agosto, 16h30 · sexta, 28 de agosto, 9h.",
+                      "retryable": false,
+                      "alternativas": [
+                        {
+                          "inicio": "2026-08-27T15:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 15h30"
+                        },
+                        {
+                          "inicio": "2026-08-27T16:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 16h30"
+                        },
+                        {
+                          "inicio": "2026-08-28T09:00:00-03:00",
+                          "label_humano": "sexta, 28 de agosto, 9h"
+                        }
+                      ]
+                    }
+                  },
+                  "STATUS_INCOMPATIVEL": {
+                    "summary": "O status atual não permite a ação",
+                    "value": {
+                      "code": "STATUS_INCOMPATIVEL",
+                      "message": "Compromisso está 'cancelado' — não dá para reagendar.",
+                      "hint": "Crie um novo agendamento com POST /appointments.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/appointments/{appointment_id}/cancel": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Cancela e libera o slot imediatamente",
+        "description": "**Escopo:** `agenda:cancel`\n\nExige escopo agenda:cancel. Disparado por agente, exige confirmação humana: a primeira chamada (sem confirmation_token) devolve 409 CONFIRMACAO_NECESSARIA com a prévia e o token; repita com o token após o humano aprovar (expira em 5 min). O slot volta para a grade na hora — a fila de espera (RF-14) será notificada quando a etapa 7 ligar o job.",
+        "operationId": "cancelar_appointments__appointment_id__cancel_post",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CONFIRMACAO_NECESSARIA": {
+                    "summary": "Ação irreversível: confirme com o humano e repita com o token",
+                    "value": {
+                      "code": "CONFIRMACAO_NECESSARIA",
+                      "message": "Cancelamento é irreversível e exige confirmação humana.",
+                      "hint": "Mostre a prévia ao humano e, com o OK, repita esta chamada com o confirmation_token do payload.",
+                      "retryable": false,
+                      "previa": {
+                        "compromisso": "0b6ff65e-…",
+                        "cliente": "Paula Andrade",
+                        "horario": "quinta, 27 de agosto, 15h30"
+                      },
+                      "confirmation_token": "cancel.0b6ff65e….1756312200.f3ab…"
+                    }
+                  },
+                  "CONFIRMACAO_INVALIDA": {
+                    "summary": "confirmation_token não vale para esta ação",
+                    "value": {
+                      "code": "CONFIRMACAO_INVALIDA",
+                      "message": "confirmation_token inválido para esta ação.",
+                      "hint": "Refaça a chamada sem token para receber uma nova prévia e um token novo.",
+                      "retryable": false
+                    }
+                  },
+                  "CONFIRMACAO_EXPIRADA": {
+                    "summary": "confirmation_token passou dos 5 minutos",
+                    "value": {
+                      "code": "CONFIRMACAO_EXPIRADA",
+                      "message": "O confirmation_token expirou (validade de 5 minutos).",
+                      "hint": "Refaça a chamada sem token, confirme com o humano e use o token novo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:cancel"
+      }
+    },
+    "/appointments/{appointment_id}/confirm": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Marca o compromisso como confirmado pelo cliente",
+        "description": "**Escopo:** `agenda:write`\n\nUse quando o cliente responder 'sim' à confirmação. Só compromissos 'agendado' aceitam.",
+        "operationId": "confirmar_appointments__appointment_id__confirm_post",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "STATUS_INCOMPATIVEL": {
+                    "summary": "O status atual não permite a ação",
+                    "value": {
+                      "code": "STATUS_INCOMPATIVEL",
+                      "message": "Compromisso está 'cancelado' — não dá para reagendar.",
+                      "hint": "Crie um novo agendamento com POST /appointments.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/appointments/{appointment_id}/no-show": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Registra falta do cliente (alimenta o histórico de risco — IA-03)",
+        "operationId": "no_show_appointments__appointment_id__no_show_post",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "description": "**Escopo:** `agenda:write`"
+      }
+    },
+    "/agenda/day": {
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Agenda do dia, narrada para o agente",
+        "description": "**Escopo:** `agenda:read`\n\nVisão consolidada em linguagem clara: compromissos com status e risco, na ordem do dia. Use para responder 'como está meu dia?' — não para checar disponibilidade (use GET /slots).",
+        "operationId": "agenda_do_dia_agenda_day_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgendaDiaOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      }
+    },
+    "/appointments/{appointment_id}/history": {
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Histórico de alterações do compromisso (quem, quando, por quê)",
+        "operationId": "historico_appointments__appointment_id__history_get",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoricoOut"
+                  },
+                  "title": "Response Historico Appointments  Appointment Id  History Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read",
+        "description": "**Escopo:** `agenda:read`"
+      }
+    },
+    "/appointments/recorrentes": {
+      "post": {
+        "tags": [
+          "recorrência"
+        ],
+        "summary": "Cria uma série recorrente ('toda terça às 10h até dezembro')",
+        "description": "**Escopo:** `agenda:write`\n\nSérie semanal ou quinzenal a partir de `inicio` (primeira ocorrência), com `ocorrencias` OU `fim_em`. Cada ocorrência vira um compromisso próprio com a mesma régua de lembretes. Ocorrência que cair em horário ocupado NÃO quebra a série: volta em `conflitos`, já com as 3 alternativas — ofereça-as ao cliente e agende com POST /appointments. Aceita Idempotency-Key.",
+        "operationId": "criar_serie_appointments_recorrentes_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurrenceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurrenceOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      }
+    },
+    "/appointments/recorrentes/{series_id}/cancel": {
+      "post": {
+        "tags": [
+          "recorrência"
+        ],
+        "summary": "Cancela TODAS as ocorrências futuras da série",
+        "description": "**Escopo:** `agenda:cancel`\n\nDistinto de cancelar UMA ocorrência (POST /appointments/{id}/cancel — RF-06). Exige agenda:cancel. Disparado por agente, exige confirmação humana: a primeira chamada devolve 409 CONFIRMACAO_NECESSARIA com prévia e token. Ocorrências passadas ou já realizadas não mudam; os slots futuros voltam para a grade na hora.",
+        "operationId": "cancelar_serie_appointments_recorrentes__series_id__cancel_post",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Series Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesCancelIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerieCanceladaOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CONFIRMACAO_NECESSARIA": {
+                    "summary": "Ação irreversível: confirme com o humano e repita com o token",
+                    "value": {
+                      "code": "CONFIRMACAO_NECESSARIA",
+                      "message": "Cancelamento é irreversível e exige confirmação humana.",
+                      "hint": "Mostre a prévia ao humano e, com o OK, repita esta chamada com o confirmation_token do payload.",
+                      "retryable": false,
+                      "previa": {
+                        "compromisso": "0b6ff65e-…",
+                        "cliente": "Paula Andrade",
+                        "horario": "quinta, 27 de agosto, 15h30"
+                      },
+                      "confirmation_token": "cancel.0b6ff65e….1756312200.f3ab…"
+                    }
+                  },
+                  "CONFIRMACAO_INVALIDA": {
+                    "summary": "confirmation_token não vale para esta ação",
+                    "value": {
+                      "code": "CONFIRMACAO_INVALIDA",
+                      "message": "confirmation_token inválido para esta ação.",
+                      "hint": "Refaça a chamada sem token para receber uma nova prévia e um token novo.",
+                      "retryable": false
+                    }
+                  },
+                  "CONFIRMACAO_EXPIRADA": {
+                    "summary": "confirmation_token passou dos 5 minutos",
+                    "value": {
+                      "code": "CONFIRMACAO_EXPIRADA",
+                      "message": "O confirmation_token expirou (validade de 5 minutos).",
+                      "hint": "Refaça a chamada sem token, confirme com o humano e use o token novo.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:cancel"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgendaDiaOut": {
+        "properties": {
+          "data": {
+            "type": "string",
+            "format": "date",
+            "title": "Data"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "narrativa": {
+            "type": "string",
+            "title": "Narrativa",
+            "description": "O dia em linguagem clara, uma linha por compromisso — pronto para o agente falar"
+          },
+          "compromissos": {
+            "items": {
+              "$ref": "#/components/schemas/AppointmentOut"
+            },
+            "type": "array",
+            "title": "Compromissos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total",
+          "narrativa",
+          "compromissos"
+        ],
+        "title": "AgendaDiaOut"
+      },
+      "Alternativa": {
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "title": "Inicio",
+            "description": "ISO 8601 com offset"
+          },
+          "label_humano": {
+            "type": "string",
+            "title": "Label Humano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "inicio",
+          "label_humano"
+        ],
+        "title": "Alternativa"
+      },
+      "AppointmentIn": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio",
+            "description": "Um inicio devolvido por GET /slots (ISO 8601 com offset)"
+          },
+          "cliente_nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Cliente Nome"
+          },
+          "cliente_telefone": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Cliente Telefone"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "origem": {
+            "type": "string",
+            "title": "Origem",
+            "description": "agente | cliente | humano | calendly",
+            "default": "agente"
+          },
+          "observacoes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observacoes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "inicio",
+          "cliente_nome",
+          "cliente_telefone"
+        ],
+        "title": "AppointmentIn",
+        "examples": [
+          {
+            "cliente_nome": "Paula Andrade",
+            "cliente_telefone": "+5511998765432",
+            "inicio": "2026-08-27T15:30:00-03:00",
+            "observacoes": "Prefere atendimento com a Júlia",
+            "origem": "agente",
+            "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c"
+          }
+        ]
+      },
+      "AppointmentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "cliente_nome": {
+            "type": "string",
+            "title": "Cliente Nome"
+          },
+          "cliente_telefone": {
+            "type": "string",
+            "title": "Cliente Telefone"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio"
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fim"
+          },
+          "label_humano": {
+            "type": "string",
+            "title": "Label Humano",
+            "description": "Pronto para falar com o cliente, pt-BR"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "agendado | confirmado | cancelado | realizado | no_show"
+          },
+          "origem": {
+            "type": "string",
+            "title": "Origem"
+          },
+          "risco_no_show": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risco No Show",
+            "description": "baixo | medio | alto (IA-03)"
+          },
+          "observacoes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observacoes"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id",
+            "description": "Presente quando faz parte de uma série (RF-15)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "service_id",
+          "resource_id",
+          "cliente_nome",
+          "cliente_telefone",
+          "inicio",
+          "fim",
+          "label_humano",
+          "status",
+          "origem"
+        ],
+        "title": "AppointmentOut",
+        "examples": [
+          {
+            "cliente_nome": "Paula Andrade",
+            "cliente_telefone": "+5511998765432",
+            "fim": "2026-08-27T16:30:00-03:00",
+            "id": "0b6ff65e-4f2a-4c8d-9e1b-3a5c7d9f0e2a",
+            "inicio": "2026-08-27T15:30:00-03:00",
+            "label_humano": "quinta, 27 de agosto, 15h30",
+            "origem": "agente",
+            "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+            "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+            "status": "agendado"
+          }
+        ]
+      },
+      "BlockIn": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio",
+            "description": "ISO 8601 com offset"
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fim",
+            "description": "ISO 8601 com offset"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "inicio",
+          "fim"
+        ],
+        "title": "BlockIn",
+        "examples": [
+          {
+            "fim": "2026-09-08T00:00:00-03:00",
+            "inicio": "2026-09-07T00:00:00-03:00",
+            "motivo": "Feriado — Independência",
+            "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
+          }
+        ]
+      },
+      "BlockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio"
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fim"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resource_id",
+          "inicio",
+          "fim",
+          "motivo"
+        ],
+        "title": "BlockOut"
+      },
+      "CancelIn": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          },
+          "confirmation_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Token",
+            "description": "Exigido para agentes: venha da resposta 409 CONFIRMACAO_NECESSARIA"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivo"
+        ],
+        "title": "CancelIn",
+        "examples": [
+          {
+            "motivo": "cliente pediu"
+          }
+        ]
+      },
+      "ConflitoOcorrencia": {
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio"
+          },
+          "label_humano": {
+            "type": "string",
+            "title": "Label Humano"
+          },
+          "alternativas": {
+            "items": {
+              "$ref": "#/components/schemas/Alternativa"
+            },
+            "type": "array",
+            "title": "Alternativas",
+            "description": "Ofereça-as ao cliente e agende a ocorrência com POST /appointments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "inicio",
+          "label_humano",
+          "alternativas"
+        ],
+        "title": "ConflitoOcorrencia",
+        "description": "Ocorrência que caiu em slot ocupado: a série não quebra (RF-15) —\nfica pendente com as 3 alternativas já propostas."
+      },
+      "ErroOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Código estável, ex.: SLOT_INDISPONIVEL"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "O que aconteceu, em uma frase"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "description": "O próximo passo, escrito para o agente executar"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable",
+            "description": "true = repetir a mesma chamada pode funcionar"
+          },
+          "alternativas": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Alternativa"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternativas",
+            "description": "Só em SLOT_INDISPONIVEL: os 3 horários livres mais próximos"
+          },
+          "previa": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previa",
+            "description": "Só em CONFIRMACAO_NECESSARIA: o que será feito, para mostrar ao humano"
+          },
+          "confirmation_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Token",
+            "description": "Só em CONFIRMACAO_NECESSARIA: repita a chamada com ele após o OK humano (expira em 5 min)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "hint",
+          "retryable"
+        ],
+        "title": "ErroOut",
+        "description": "Todo erro da API tem este formato. O `hint` é escrito para o agente\nagir — quando possível, a saída já vem no payload (ex.: alternativas)."
+      },
+      "HistoricoOut": {
+        "properties": {
+          "acao": {
+            "type": "string",
+            "title": "Acao",
+            "description": "criado | reagendado | cancelado | confirmado | no_show"
+          },
+          "de": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "De",
+            "description": "Início anterior (reagendamento)"
+          },
+          "para": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Para",
+            "description": "Início novo (reagendamento)"
+          },
+          "origem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origem",
+            "description": "Quem fez: humano | agente | cliente"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          },
+          "em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Em"
+          }
+        },
+        "type": "object",
+        "required": [
+          "acao",
+          "em"
+        ],
+        "title": "HistoricoOut"
+      },
+      "Pagina_ResourceOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Presente quando há mais páginas — repita a chamada com cursor=<este valor>"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Pagina[ResourceOut]"
+      },
+      "Pagina_ServiceOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Presente quando há mais páginas — repita a chamada com cursor=<este valor>"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Pagina[ServiceOut]"
+      },
+      "RecurrenceIn": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio"
+          },
+          "cliente_nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Cliente Nome"
+          },
+          "cliente_telefone": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Cliente Telefone"
+          },
+          "frequencia": {
+            "type": "string",
+            "title": "Frequencia",
+            "description": "semanal ou quinzenal"
+          },
+          "ocorrencias": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocorrencias"
+          },
+          "fim_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fim Em"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "origem": {
+            "type": "string",
+            "title": "Origem",
+            "default": "agente"
+          },
+          "observacoes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observacoes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "inicio",
+          "cliente_nome",
+          "cliente_telefone",
+          "frequencia"
+        ],
+        "title": "RecurrenceIn",
+        "description": "RF-15: série semanal ou quinzenal — deliberadamente sem RRULE completo.\n\n`inicio` é a primeira ocorrência (define dia da semana e hora). Informe\n`ocorrencias` OU `fim_em`, nunca os dois.",
+        "examples": [
+          {
+            "cliente_nome": "Paula Andrade",
+            "cliente_telefone": "+5511998765432",
+            "frequencia": "semanal",
+            "inicio": "2026-09-08T10:00:00-03:00",
+            "ocorrencias": 4,
+            "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c"
+          }
+        ]
+      },
+      "RecurrenceOut": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Series Id"
+          },
+          "frequencia": {
+            "type": "string",
+            "title": "Frequencia"
+          },
+          "criadas": {
+            "items": {
+              "$ref": "#/components/schemas/AppointmentOut"
+            },
+            "type": "array",
+            "title": "Criadas"
+          },
+          "conflitos": {
+            "items": {
+              "$ref": "#/components/schemas/ConflitoOcorrencia"
+            },
+            "type": "array",
+            "title": "Conflitos",
+            "description": "Ocorrências que caíram em horário ocupado — pendentes, com alternativas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "frequencia",
+          "criadas",
+          "conflitos"
+        ],
+        "title": "RecurrenceOut"
+      },
+      "RemocaoBloqueioOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "removido": {
+            "type": "boolean",
+            "title": "Removido",
+            "description": "false = já não existia (remoção é idempotente)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "removido"
+        ],
+        "title": "RemocaoBloqueioOut"
+      },
+      "RemocaoRegraOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "removida": {
+            "type": "boolean",
+            "title": "Removida",
+            "description": "false = já não existia (remoção é idempotente)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "removida"
+        ],
+        "title": "RemocaoRegraOut"
+      },
+      "RescheduleIn": {
+        "properties": {
+          "novo_inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Novo Inicio",
+            "description": "Um inicio devolvido por GET /slots"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "novo_inicio"
+        ],
+        "title": "RescheduleIn",
+        "examples": [
+          {
+            "motivo": "cliente pediu",
+            "novo_inicio": "2026-08-28T09:00:00-03:00"
+          }
+        ]
+      },
+      "ResourceIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Nome"
+          },
+          "tipo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome"
+        ],
+        "title": "ResourceIn"
+      },
+      "ResourceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "tipo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "tipo",
+          "ativo"
+        ],
+        "title": "ResourceOut"
+      },
+      "RuleIn": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "dia_semana": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Dia Semana",
+            "description": "0=segunda … 6=domingo"
+          },
+          "hora_inicio": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Inicio",
+            "description": "Hora local America/Sao_Paulo"
+          },
+          "hora_fim": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Fim",
+            "description": "Hora local America/Sao_Paulo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "dia_semana",
+          "hora_inicio",
+          "hora_fim"
+        ],
+        "title": "RuleIn",
+        "examples": [
+          {
+            "dia_semana": 1,
+            "hora_fim": "18:00",
+            "hora_inicio": "09:00",
+            "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
+          }
+        ]
+      },
+      "RuleOut": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "dia_semana": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Dia Semana",
+            "description": "0=segunda … 6=domingo"
+          },
+          "hora_inicio": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Inicio",
+            "description": "Hora local America/Sao_Paulo"
+          },
+          "hora_fim": {
+            "type": "string",
+            "format": "time",
+            "title": "Hora Fim",
+            "description": "Hora local America/Sao_Paulo"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "dia_semana",
+          "hora_inicio",
+          "hora_fim",
+          "id"
+        ],
+        "title": "RuleOut",
+        "examples": [
+          {
+            "dia_semana": 1,
+            "hora_fim": "18:00",
+            "hora_inicio": "09:00",
+            "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
+          }
+        ]
+      },
+      "RulePatch": {
+        "properties": {
+          "dia_semana": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dia Semana"
+          },
+          "hora_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hora Inicio"
+          },
+          "hora_fim": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hora Fim"
+          }
+        },
+        "type": "object",
+        "title": "RulePatch"
+      },
+      "SerieCanceladaOut": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Series Id"
+          },
+          "canceladas": {
+            "type": "integer",
+            "title": "Canceladas",
+            "description": "Quantas ocorrências futuras foram canceladas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "canceladas"
+        ],
+        "title": "SerieCanceladaOut"
+      },
+      "SeriesCancelIn": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          },
+          "confirmation_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Token",
+            "description": "Exigido para agentes: venha da resposta 409 CONFIRMACAO_NECESSARIA"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivo"
+        ],
+        "title": "SeriesCancelIn",
+        "examples": [
+          {
+            "motivo": "cliente encerrou o pacote"
+          }
+        ]
+      },
+      "ServiceIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Nome"
+          },
+          "duracao_min": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duracao Min"
+          },
+          "preco": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Preco",
+            "description": "String decimal, BRL",
+            "default": "0"
+          },
+          "buffer_antes_min": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Buffer Antes Min",
+            "default": 0
+          },
+          "buffer_depois_min": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Buffer Depois Min",
+            "default": 0
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo",
+            "default": true
+          },
+          "resource_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Resource Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "duracao_min"
+        ],
+        "title": "ServiceIn",
+        "examples": [
+          {
+            "buffer_depois_min": 10,
+            "duracao_min": 60,
+            "nome": "Corte feminino",
+            "preco": "80.00",
+            "resource_ids": [
+              "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
+            ]
+          }
+        ]
+      },
+      "ServiceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "duracao_min": {
+            "type": "integer",
+            "title": "Duracao Min"
+          },
+          "preco": {
+            "type": "string",
+            "title": "Preco"
+          },
+          "buffer_antes_min": {
+            "type": "integer",
+            "title": "Buffer Antes Min"
+          },
+          "buffer_depois_min": {
+            "type": "integer",
+            "title": "Buffer Depois Min"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "duracao_min",
+          "preco",
+          "buffer_antes_min",
+          "buffer_depois_min",
+          "ativo"
+        ],
+        "title": "ServiceOut",
+        "examples": [
+          {
+            "ativo": true,
+            "buffer_antes_min": 0,
+            "buffer_depois_min": 10,
+            "duracao_min": 60,
+            "id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+            "nome": "Corte feminino",
+            "preco": "80.00"
+          }
+        ]
+      },
+      "ServicePatch": {
+        "properties": {
+          "nome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          },
+          "duracao_min": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duracao Min"
+          },
+          "preco": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preco"
+          },
+          "buffer_antes_min": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Antes Min"
+          },
+          "buffer_depois_min": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Depois Min"
+          },
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          }
+        },
+        "type": "object",
+        "title": "ServicePatch",
+        "description": "Alteração parcial: só os campos enviados mudam. Alterar duração não\naltera agendamentos já existentes (RF-01)."
+      },
+      "SlotOut": {
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio"
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fim"
+          },
+          "resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Resource Id"
+          },
+          "label_humano": {
+            "type": "string",
+            "title": "Label Humano",
+            "description": "Pronto para falar com o cliente, pt-BR"
+          }
+        },
+        "type": "object",
+        "required": [
+          "inicio",
+          "fim",
+          "resource_id",
+          "label_humano"
+        ],
+        "title": "SlotOut",
+        "examples": [
+          {
+            "fim": "2026-08-27T16:30:00-03:00",
+            "inicio": "2026-08-27T15:30:00-03:00",
+            "label_humano": "quinta, 27 de agosto, 15h30",
+            "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "SupabaseJWT": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT do Supabase Auth com claim `org_id` — humanos e UI."
+      },
+      "AgentKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Agent-Key",
+        "description": "Chave estática de agente (fase 1 do conector — vira OAuth 2.1 no agenda-mcp). Ações irreversíveis pedem confirmação humana."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "saúde",
+      "description": "Liveness/readiness — sem autenticação."
+    },
+    {
+      "name": "catálogo",
+      "description": "Serviços e recursos (RF-01). Comece por aqui: o `service_id` é a chave de todo o resto."
+    },
+    {
+      "name": "grade",
+      "description": "Janelas semanais de trabalho e bloqueios pontuais (RF-02). É o que o motor de slots oferece."
+    },
+    {
+      "name": "slots",
+      "description": "Disponibilidade real (RF-02): grade − bloqueios − agendamentos − buffers. Consulte SEMPRE antes de agendar."
+    },
+    {
+      "name": "agendamentos",
+      "description": "Agendar, reagendar, cancelar, confirmar (RF-03..06). Double-booking é impossível por constraint no banco."
+    },
+    {
+      "name": "recorrência",
+      "description": "Séries semanais/quinzenais (RF-15). Cada ocorrência é um compromisso próprio ligado ao `series_id`."
+    }
+  ],
+  "security": [
+    {
+      "SupabaseJWT": []
+    },
+    {
+      "AgentKey": []
+    }
+  ]
+}

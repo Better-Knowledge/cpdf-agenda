@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import idempotency as idem
 from ..auth import Credencial, credencial_atual, exigir_escopo
+from ..contrato import operacao, respostas
 from ..db import get_db
 from ..models import Resource
 from ..schemas import Pagina, ResourceIn, ResourceOut
@@ -15,6 +16,8 @@ router = APIRouter(tags=["catálogo"])
     "/resources",
     response_model=Pagina[ResourceOut],
     summary="Lista profissionais, salas e equipamentos ativos",
+    responses=respostas(),
+    openapi_extra=operacao("agenda:read"),
 )
 def listar_resources(
     cred: Credencial = Depends(credencial_atual),
@@ -32,6 +35,9 @@ def listar_resources(
     response_model=ResourceOut,
     status_code=201,
     summary="Cadastra um recurso (profissional, sala, equipamento)",
+    description="O recurso é o que não pode ser agendado duas vezes no mesmo horário. Aceita Idempotency-Key.",
+    responses=respostas(),
+    openapi_extra=operacao("agenda:write", idempotente=True),
 )
 def criar_resource(
     dados: ResourceIn,

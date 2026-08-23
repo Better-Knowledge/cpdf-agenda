@@ -15,12 +15,16 @@ from pydantic import (
     model_validator,
 )
 
+from .contrato import Alternativa
 from .tempo import exigir_aware, label_humano
 
 
 class Pagina[T](BaseModel):
     items: list[T]
-    next_cursor: str | None = None
+    next_cursor: str | None = Field(
+        default=None,
+        description="Presente quando há mais páginas — repita a chamada com cursor=<este valor>",
+    )
 
 
 class _DinheiroOut:
@@ -33,9 +37,23 @@ class _DinheiroOut:
 
 
 class ServiceIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "nome": "Corte feminino",
+                    "duracao_min": 60,
+                    "preco": "80.00",
+                    "buffer_depois_min": 10,
+                    "resource_ids": ["6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"],
+                }
+            ]
+        }
+    )
+
     nome: str = Field(min_length=1)
     duracao_min: int = Field(gt=0)
-    preco: Decimal = Field(default=Decimal("0"), ge=0)
+    preco: Decimal = Field(default=Decimal("0"), ge=0, description="String decimal, BRL")
     buffer_antes_min: int = Field(default=0, ge=0)
     buffer_depois_min: int = Field(default=0, ge=0)
     ativo: bool = True
@@ -43,7 +61,22 @@ class ServiceIn(BaseModel):
 
 
 class ServiceOut(_DinheiroOut, BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+                    "nome": "Corte feminino",
+                    "duracao_min": 60,
+                    "preco": "80.00",
+                    "buffer_antes_min": 0,
+                    "buffer_depois_min": 10,
+                    "ativo": True,
+                }
+            ]
+        },
+    )
     id: UUID
     nome: str
     duracao_min: int
@@ -84,10 +117,23 @@ class ResourceOut(BaseModel):
 
 
 class RuleIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+                    "dia_semana": 1,
+                    "hora_inicio": "09:00",
+                    "hora_fim": "18:00",
+                }
+            ]
+        }
+    )
+
     resource_id: UUID
     dia_semana: int = Field(ge=0, le=6, description="0=segunda … 6=domingo")
-    hora_inicio: time
-    hora_fim: time
+    hora_inicio: time = Field(description="Hora local America/Sao_Paulo")
+    hora_fim: time = Field(description="Hora local America/Sao_Paulo")
 
 
 class RulePatch(BaseModel):
@@ -102,9 +148,22 @@ class RuleOut(RuleIn):
 
 
 class BlockIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+                    "inicio": "2026-09-07T00:00:00-03:00",
+                    "fim": "2026-09-08T00:00:00-03:00",
+                    "motivo": "Feriado — Independência",
+                }
+            ]
+        }
+    )
+
     resource_id: UUID
-    inicio: datetime
-    fim: datetime
+    inicio: datetime = Field(description="ISO 8601 com offset")
+    fim: datetime = Field(description="ISO 8601 com offset")
     motivo: str | None = None
 
     @field_validator("inicio", "fim")
@@ -125,10 +184,23 @@ class BlockOut(BaseModel):
 
 
 class SlotOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "inicio": "2026-08-27T15:30:00-03:00",
+                    "fim": "2026-08-27T16:30:00-03:00",
+                    "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+                    "label_humano": "quinta, 27 de agosto, 15h30",
+                }
+            ]
+        }
+    )
+
     inicio: datetime
     fim: datetime
     resource_id: UUID
-    label_humano: str
+    label_humano: str = Field(description="Pronto para falar com o cliente, pt-BR")
 
     @classmethod
     def de_inicio(cls, inicio: datetime, duracao_min: int, resource_id: UUID) -> "SlotOut":
@@ -146,12 +218,27 @@ class SlotOut(BaseModel):
 
 
 class AppointmentIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+                    "inicio": "2026-08-27T15:30:00-03:00",
+                    "cliente_nome": "Paula Andrade",
+                    "cliente_telefone": "+5511998765432",
+                    "origem": "agente",
+                    "observacoes": "Prefere atendimento com a Júlia",
+                }
+            ]
+        }
+    )
+
     service_id: UUID
-    inicio: datetime
+    inicio: datetime = Field(description="Um inicio devolvido por GET /slots (ISO 8601 com offset)")
     cliente_nome: str = Field(min_length=1)
     cliente_telefone: str = Field(min_length=8)
     resource_id: UUID | None = None  # sem informar: primeiro recurso livre do serviço
-    origem: str = "agente"
+    origem: str = Field(default="agente", description="agente | cliente | humano | calendly")
     observacoes: str | None = None
 
     @field_validator("inicio")
@@ -168,6 +255,28 @@ class AppointmentIn(BaseModel):
 
 
 class AppointmentOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "0b6ff65e-4f2a-4c8d-9e1b-3a5c7d9f0e2a",
+                    "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+                    "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02",
+                    "cliente_nome": "Paula Andrade",
+                    "cliente_telefone": "+5511998765432",
+                    "inicio": "2026-08-27T15:30:00-03:00",
+                    "fim": "2026-08-27T16:30:00-03:00",
+                    "label_humano": "quinta, 27 de agosto, 15h30",
+                    "status": "agendado",
+                    "origem": "agente",
+                    "risco_no_show": None,
+                    "observacoes": None,
+                    "series_id": None,
+                }
+            ]
+        }
+    )
+
     id: UUID
     service_id: UUID
     resource_id: UUID
@@ -175,12 +284,12 @@ class AppointmentOut(BaseModel):
     cliente_telefone: str
     inicio: datetime
     fim: datetime
-    label_humano: str
-    status: str
+    label_humano: str = Field(description="Pronto para falar com o cliente, pt-BR")
+    status: str = Field(description="agendado | confirmado | cancelado | realizado | no_show")
     origem: str
-    risco_no_show: str | None = None
+    risco_no_show: str | None = Field(default=None, description="baixo | medio | alto (IA-03)")
     observacoes: str | None = None
-    series_id: UUID | None = None
+    series_id: UUID | None = Field(default=None, description="Presente quando faz parte de uma série (RF-15)")
 
 
 class RecurrenceIn(BaseModel):
@@ -189,6 +298,21 @@ class RecurrenceIn(BaseModel):
     `inicio` é a primeira ocorrência (define dia da semana e hora). Informe
     `ocorrencias` OU `fim_em`, nunca os dois.
     """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+                    "inicio": "2026-09-08T10:00:00-03:00",
+                    "cliente_nome": "Paula Andrade",
+                    "cliente_telefone": "+5511998765432",
+                    "frequencia": "semanal",
+                    "ocorrencias": 4,
+                }
+            ]
+        }
+    )
 
     service_id: UUID
     inicio: datetime
@@ -231,23 +355,47 @@ class ConflitoOcorrencia(BaseModel):
 
     inicio: datetime
     label_humano: str
-    alternativas: list[dict]
+    alternativas: list[Alternativa] = Field(
+        description="Ofereça-as ao cliente e agende a ocorrência com POST /appointments"
+    )
 
 
 class RecurrenceOut(BaseModel):
     series_id: UUID
     frequencia: str
     criadas: list[AppointmentOut]
-    conflitos: list[ConflitoOcorrencia]
+    conflitos: list[ConflitoOcorrencia] = Field(
+        description="Ocorrências que caíram em horário ocupado — pendentes, com alternativas"
+    )
 
 
 class SeriesCancelIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"motivo": "cliente encerrou o pacote"}]}
+    )
+
     motivo: str
-    confirmation_token: str | None = None
+    confirmation_token: str | None = Field(
+        default=None,
+        description="Exigido para agentes: venha da resposta 409 CONFIRMACAO_NECESSARIA",
+    )
+
+
+class SerieCanceladaOut(BaseModel):
+    series_id: UUID
+    canceladas: int = Field(description="Quantas ocorrências futuras foram canceladas")
 
 
 class RescheduleIn(BaseModel):
-    novo_inicio: datetime
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"novo_inicio": "2026-08-28T09:00:00-03:00", "motivo": "cliente pediu"}
+            ]
+        }
+    )
+
+    novo_inicio: datetime = Field(description="Um inicio devolvido por GET /slots")
     motivo: str | None = None
 
     @field_validator("novo_inicio")
@@ -257,5 +405,41 @@ class RescheduleIn(BaseModel):
 
 
 class CancelIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"motivo": "cliente pediu"}]})
+
     motivo: str
-    confirmation_token: str | None = None
+    confirmation_token: str | None = Field(
+        default=None,
+        description="Exigido para agentes: venha da resposta 409 CONFIRMACAO_NECESSARIA",
+    )
+
+
+# ── Saídas narradas e de manutenção ──────────────────────────────────────────
+
+
+class AgendaDiaOut(BaseModel):
+    data: date
+    total: int
+    narrativa: str = Field(
+        description="O dia em linguagem clara, uma linha por compromisso — pronto para o agente falar"
+    )
+    compromissos: list[AppointmentOut]
+
+
+class HistoricoOut(BaseModel):
+    acao: str = Field(description="criado | reagendado | cancelado | confirmado | no_show")
+    de: datetime | None = Field(default=None, description="Início anterior (reagendamento)")
+    para: datetime | None = Field(default=None, description="Início novo (reagendamento)")
+    origem: str | None = Field(default=None, description="Quem fez: humano | agente | cliente")
+    motivo: str | None = None
+    em: datetime
+
+
+class RemocaoRegraOut(BaseModel):
+    id: UUID
+    removida: bool = Field(description="false = já não existia (remoção é idempotente)")
+
+
+class RemocaoBloqueioOut(BaseModel):
+    id: UUID
+    removido: bool = Field(description="false = já não existia (remoção é idempotente)")
