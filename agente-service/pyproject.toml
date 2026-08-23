@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Orquestrador do inbound (IA-04): classifica intenção e age via API da agenda"
 requires-python = ">=3.12"
 authors = [{ name = "Fernando Melo Faraco", email = "fernando.faraco@better-knowledge.com.br" }]
-license = "Apache-2.0"
-license-files = ["../LICENSE", "../NOTICE"]
+license = "MIT"
+license-files = ["../LICENSE"]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",

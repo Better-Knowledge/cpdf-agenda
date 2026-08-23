@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Conector MCP administrativo da Agenda Inteligente (PRD §14.5)"
 requires-python = ">=3.12"
 authors = [{ name = "Fernando Melo Faraco", email = "fernando.faraco@better-knowledge.com.br" }]
-license = "Apache-2.0"
-license-files = ["../LICENSE", "../NOTICE"]
+license = "MIT"
+license-files = ["../LICENSE"]
 dependencies = [
     "mcp>=1.9",
     "uvicorn[standard]>=0.30",
