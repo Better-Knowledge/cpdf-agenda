@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Bloqueio, Recurso, Regra, api } from "../api";
 import { BotaoConfirmar } from "../Confirmar";
 import { ErroAviso } from "../ErroAviso";
+import { usarToast } from "../Toast";
 
 // T-05: horário de trabalho semanal por recurso + bloqueios pontuais.
 const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -31,6 +32,7 @@ export function Grade() {
   const [bloqueioInicio, setBloqueioInicio] = useState("");
   const [bloqueioFim, setBloqueioFim] = useState("");
   const [motivo, setMotivo] = useState("");
+  const avisar = usarToast();
 
   const carregar = useCallback(async () => {
     const lista = (await api.get<{ items: Recurso[] }>("/resources")).items;
@@ -51,10 +53,11 @@ export function Grade() {
       .catch(setErro);
   }, [recursoAtivo]);
 
-  async function agir(acao: () => Promise<unknown>) {
+  async function agir(acao: () => Promise<unknown>, feito?: string) {
     setErro(null);
     try {
       await acao();
+      if (feito) avisar(feito);
       await carregar();
       if (recursoAtivo)
         setBloqueios(await api.get<Bloqueio[]>(`/availability/blocks?resource_id=${recursoAtivo}`));
@@ -65,14 +68,18 @@ export function Grade() {
 
   function criarRecurso(evento: FormEvent) {
     evento.preventDefault();
-    agir(() => api.post("/resources", { nome: novoRecurso })).then(() => setNovoRecurso(""));
+    agir(() => api.post("/resources", { nome: novoRecurso }), "Recurso adicionado").then(() =>
+      setNovoRecurso(""),
+    );
   }
 
   const regrasDoRecurso = regras.filter((r) => r.resource_id === recursoAtivo);
 
   return (
     <>
-      <h1>Grade e bloqueios</h1>
+      <h1>
+        Grade e <em>bloqueios</em>
+      </h1>
       <p className="subtitulo">
         O motor de horários só oferece o que estiver dentro da grade — e fora dos bloqueios.
       </p>
@@ -88,7 +95,7 @@ export function Grade() {
               placeholder="ex.: Dra. Ana"
             />
           </label>
-          <button className="acao secundaria" disabled={!novoRecurso.trim()}>
+          <button className="acao" disabled={!novoRecurso.trim()}>
             Adicionar recurso
           </button>
         </form>
@@ -108,7 +115,7 @@ export function Grade() {
           </label>
 
           <div className="cartao" style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 12 }}>Horário de trabalho</h2>
+            <h2 className="bloco">Horário de trabalho</h2>
             {regrasDoRecurso.length === 0 ? (
               <div className="vazio">
                 Sem grade ainda — sem horário de trabalho, nenhum slot é oferecido.
@@ -134,7 +141,7 @@ export function Grade() {
                         <td className="mono">{hora(r.hora_fim)}</td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                           <button
-                            className="acao secundaria miuda"
+                            className="acao miuda"
                             onClick={() => {
                               setEditandoRegra(r.id);
                               setDia(r.dia_semana);
@@ -149,7 +156,10 @@ export function Grade() {
                             rotulo="Remover"
                             confirmacao="Remover?"
                             onConfirmar={() =>
-                              agir(() => api.delete(`/availability/rules/${r.id}`))
+                              agir(
+                                () => api.delete(`/availability/rules/${r.id}`),
+                                "Janela removida da grade",
+                              )
                             }
                           />
                         </td>
@@ -164,10 +174,12 @@ export function Grade() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const corpo = { dia_semana: dia, hora_inicio: inicio, hora_fim: fim };
-                agir(() =>
-                  editandoRegra
-                    ? api.patch(`/availability/rules/${editandoRegra}`, corpo)
-                    : api.post("/availability/rules", { resource_id: recursoAtivo, ...corpo }),
+                agir(
+                  () =>
+                    editandoRegra
+                      ? api.patch(`/availability/rules/${editandoRegra}`, corpo)
+                      : api.post("/availability/rules", { resource_id: recursoAtivo, ...corpo }),
+                  editandoRegra ? "Janela salva" : "Janela adicionada à grade",
                 ).then(() => setEditandoRegra(null));
               }}
             >
@@ -189,15 +201,11 @@ export function Grade() {
                 Às
                 <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} />
               </label>
-              <button className="acao">
+              <button className="acao primario">
                 {editandoRegra ? "Salvar janela" : "Adicionar janela"}
               </button>
               {editandoRegra && (
-                <button
-                  type="button"
-                  className="acao secundaria"
-                  onClick={() => setEditandoRegra(null)}
-                >
+                <button type="button" className="acao" onClick={() => setEditandoRegra(null)}>
                   Cancelar edição
                 </button>
               )}
@@ -205,7 +213,7 @@ export function Grade() {
           </div>
 
           <div className="cartao">
-            <h2 style={{ fontSize: 16, marginBottom: 12 }}>Bloqueios pontuais</h2>
+            <h2 className="bloco">Bloqueios pontuais</h2>
             {bloqueios.length === 0 ? (
               <div className="vazio">Nenhum bloqueio futuro — férias e feriados entram aqui.</div>
             ) : (
@@ -230,7 +238,10 @@ export function Grade() {
                           rotulo="Remover"
                           confirmacao="Liberar horários?"
                           onConfirmar={() =>
-                            agir(() => api.delete(`/availability/blocks/${b.id}`))
+                            agir(
+                              () => api.delete(`/availability/blocks/${b.id}`),
+                              "Bloqueio removido — horários de volta na grade",
+                            )
                           }
                         />
                       </td>
@@ -244,13 +255,15 @@ export function Grade() {
               style={{ marginTop: 14 }}
               onSubmit={(e) => {
                 e.preventDefault();
-                agir(() =>
-                  api.post("/availability/blocks", {
-                    resource_id: recursoAtivo,
-                    inicio: `${bloqueioInicio}:00-03:00`,
-                    fim: `${bloqueioFim}:00-03:00`,
-                    motivo: motivo || null,
-                  }),
+                agir(
+                  () =>
+                    api.post("/availability/blocks", {
+                      resource_id: recursoAtivo,
+                      inicio: `${bloqueioInicio}:00-03:00`,
+                      fim: `${bloqueioFim}:00-03:00`,
+                      motivo: motivo || null,
+                    }),
+                  "Período bloqueado",
                 ).then(() => {
                   setBloqueioInicio("");
                   setBloqueioFim("");

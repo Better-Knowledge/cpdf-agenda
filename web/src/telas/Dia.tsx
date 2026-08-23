@@ -44,7 +44,11 @@ export function Dia() {
 
   useEffect(() => {
     api.get<{ items: Recurso[] }>("/resources").then((r) => setRecursos(r.items));
-    api.get<{ items: Servico[] }>("/services?limit=50").then((r) => setServicos(r.items));
+    // ativos e desativados: compromisso antigo de serviço desativado mantém o nome
+    Promise.all([
+      api.get<{ items: Servico[] }>("/services?limit=50"),
+      api.get<{ items: Servico[] }>("/services?ativo=false&limit=50"),
+    ]).then(([ativos, inativos]) => setServicos([...ativos.items, ...inativos.items]));
   }, []);
 
   // T-02 reflete mudanças feitas por conversa sem refresh manual (polling basta)
@@ -65,7 +69,9 @@ export function Dia() {
 
   return (
     <>
-      <h1>Agenda do dia</h1>
+      <h1>
+        Agenda do <em>dia</em>
+      </h1>
       <p className="subtitulo">
         O que a conversa marcou, confirmou e cancelou — atualizado sozinho a cada 10 s.
       </p>
@@ -79,13 +85,13 @@ export function Dia() {
         <button className="navega" onClick={() => setData(mudarDia(data, 1))} aria-label="Próximo dia">
           ›
         </button>
-        <strong>{dataPorExtenso(data)}</strong>
+        <span className="data-extenso">{dataPorExtenso(data)}</span>
       </div>
       <ErroAviso erro={erro} />
 
       {recursos.length === 0 ? (
         <div className="cartao vazio">
-          Nenhum recurso cadastrado ainda — comece criando um em “Grade e bloqueios”.
+          Nenhum recurso ainda — comece criando um em “Grade e bloqueios”.
         </div>
       ) : (
         <div className="quadro-dia" style={{ "--colunas": recursos.length } as React.CSSProperties}>
@@ -121,6 +127,13 @@ export function Dia() {
                 .map((c) => {
                   const inicio = horaLocal(c.inicio);
                   const fim = horaLocal(c.fim);
+                  // cor nunca é o único sinal: status fora do padrão vira texto
+                  const statusTexto = {
+                    confirmado: " · confirmado",
+                    cancelado: " · cancelado",
+                    no_show: " · faltou",
+                    realizado: " · realizado",
+                  }[c.status as string];
                   return (
                     <button
                       key={c.id}
@@ -137,6 +150,7 @@ export function Dia() {
                         {String(inicio.h).padStart(2, "0")}:{String(inicio.m).padStart(2, "0")}–
                         {String(fim.h).padStart(2, "0")}:{String(fim.m).padStart(2, "0")} ·{" "}
                         {nomeServico.get(c.service_id) ?? "serviço"}
+                        {statusTexto}
                       </div>
                     </button>
                   );
