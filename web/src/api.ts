@@ -94,6 +94,7 @@ export interface Compromisso {
   origem: string;
   risco_no_show: string | null;
   observacoes: string | null;
+  series_id: string | null;
 }
 
 export interface Slot {

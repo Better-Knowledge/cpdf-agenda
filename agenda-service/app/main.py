@@ -14,7 +14,15 @@ from scalar_fastapi import get_scalar_api_reference
 from .config import settings
 from .errors import instalar_handlers
 from .jobs import criar_scheduler
-from .routers import appointments, availability, health, resources, services, slots
+from .routers import (
+    appointments,
+    availability,
+    health,
+    recorrencia,
+    resources,
+    services,
+    slots,
+)
 
 logging.basicConfig(level=settings().log_level)
 
@@ -48,6 +56,7 @@ app.include_router(resources.router)
 app.include_router(availability.router)
 app.include_router(slots.router)
 app.include_router(appointments.router)
+app.include_router(recorrencia.router)
 
 
 @app.get("/docs", include_in_schema=False)

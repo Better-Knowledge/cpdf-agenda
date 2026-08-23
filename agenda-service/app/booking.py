@@ -167,6 +167,32 @@ def _evento(db: Session, ap: Appointment, tipo: str) -> None:
     )
 
 
+def gerar_ocorrencias(
+    inicio: datetime,
+    frequencia: str,
+    ocorrencias: int | None,
+    fim_em,
+) -> list[datetime]:
+    """Datas da série (RF-15), em hora de parede America/Sao_Paulo — o passo é
+    em dias corridos sobre a data local, então uma eventual volta do DST muda
+    o offset, nunca o horário combinado com o cliente."""
+    from .tempo import TZ
+
+    local = inicio.astimezone(TZ)
+    passo = timedelta(days=7 if frequencia == "semanal" else 14)
+    datas: list[datetime] = []
+    atual = local
+    while True:
+        if ocorrencias is not None and len(datas) >= ocorrencias:
+            break
+        if fim_em is not None and atual.date() > fim_em:
+            break
+        datas.append(atual)
+        proxima_data = (atual + passo).date()
+        atual = datetime.combine(proxima_data, local.time(), tzinfo=TZ)
+    return datas
+
+
 def criar_lembretes(db: Session, ap: Appointment) -> None:
     inicio = ap.periodo.lower
     agora = agora_utc()
@@ -206,11 +232,13 @@ def criar_appointment(
         series_id=series_id,
         external_ref=external_ref,
     )
-    db.add(ap)
     try:
-        db.flush()  # dispara a constraint sem_double_booking agora
+        # Savepoint: o conflito desfaz SÓ esta inserção — numa série (RF-15),
+        # as ocorrências já criadas na mesma transação sobrevivem.
+        with db.begin_nested():
+            db.add(ap)
+            db.flush()  # dispara a constraint sem_double_booking agora
     except IntegrityError as e:
-        db.rollback()
         if "sem_double_booking" in str(e.orig):
             raise erro_slot_indisponivel(db, servico, resource_id, inicio) from e
         raise
@@ -228,12 +256,13 @@ def reagendar(
     constraint valida o novo slot e o antigo é liberado junto, ou nada muda."""
     anterior = ap.periodo
     novo_fim = novo_inicio + timedelta(minutes=servico.duracao_min)
-    ap.periodo = Range(utc(novo_inicio), utc(novo_fim))
-    ap.status = "agendado"  # reagendou: confirmação anterior não vale mais
     try:
-        db.flush()
+        with db.begin_nested():
+            ap.periodo = Range(utc(novo_inicio), utc(novo_fim))
+            ap.status = "agendado"  # reagendou: confirmação anterior não vale mais
+            db.flush()
     except IntegrityError as e:
-        db.rollback()
+        db.refresh(ap)  # devolve o objeto ao estado persistido (nada mudou)
         if "sem_double_booking" in str(e.orig):
             raise erro_slot_indisponivel(db, servico, ap.resource_id, novo_inicio) from e
         raise

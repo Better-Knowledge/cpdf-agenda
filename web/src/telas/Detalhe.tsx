@@ -33,7 +33,7 @@ interface Props {
 
 export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Props) {
   const [historico, setHistorico] = useState<Historico[]>([]);
-  const [modo, setModo] = useState<"ver" | "reagendar" | "cancelar" | "falta">("ver");
+  const [modo, setModo] = useState<"ver" | "reagendar" | "cancelar" | "falta" | "serie">("ver");
   const [erro, setErro] = useState<unknown>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -98,6 +98,7 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
         <h2>{c.cliente_nome}</h2>
         <div className="horario-grande">{c.label_humano}</div>
         <span className={`selo ${c.status}`}>{c.status.replace("_", "-")}</span>{" "}
+        {c.series_id && <span className="selo serie">recorrente</span>}{" "}
         {c.risco_no_show === "alto" && <span className="selo risco">risco de falta alto</span>}
         <dl>
           <dt>Serviço</dt>
@@ -138,6 +139,71 @@ export function Detalhe({ compromisso: c, nomeServico, onFechar, onMudou }: Prop
             <button className="acao perigo" onClick={() => setModo("falta")}>
               Marcar falta
             </button>
+            {c.series_id && (
+              <button className="acao perigo" onClick={() => setModo("serie")}>
+                Cancelar futuras da série
+              </button>
+            )}
+          </div>
+        )}
+
+        {modo === "serie" && (
+          <div>
+            <label className="campo">
+              Motivo do cancelamento da série
+              <input
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="ex.: cliente encerrou o pacote"
+              />
+            </label>
+            <div className="acoes">
+              <p style={{ width: "100%", fontSize: 14 }}>
+                Cancela <strong>todas as ocorrências futuras</strong> desta série — as passadas
+                não mudam. Os horários voltam para a grade na hora.
+              </p>
+              {tokenConfirmacao ? (
+                <button
+                  className="acao perigo"
+                  disabled={ocupado}
+                  onClick={() =>
+                    executar(
+                      () =>
+                        api.post(`/appointments/recorrentes/${c.series_id}/cancel`, {
+                          motivo,
+                          confirmation_token: tokenConfirmacao,
+                        }),
+                      "Série cancelada — horários de volta na grade",
+                    )
+                  }
+                >
+                  Confirmar cancelamento da série
+                </button>
+              ) : (
+                <button
+                  className="acao perigo"
+                  disabled={ocupado || !motivo.trim()}
+                  onClick={() =>
+                    executar(
+                      () =>
+                        api.post(`/appointments/recorrentes/${c.series_id}/cancel`, { motivo }),
+                      "Série cancelada — horários de volta na grade",
+                    )
+                  }
+                >
+                  Cancelar futuras da série
+                </button>
+              )}
+              <button
+                className="acao"
+                onClick={() => {
+                  setTokenConfirmacao(null);
+                  setModo("ver");
+                }}
+              >
+                Voltar
+              </button>
+            </div>
           </div>
         )}
 
