@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from . import risco as risco_no_show
 from .config import settings
 from .errors import ApiError, NaoEncontrado
 from .models import (
@@ -244,6 +245,8 @@ def criar_appointment(
         raise
     _historico(db, ap, "criado", para=ap.periodo, origem=origem)
     _evento(db, ap, "agenda.appointment.created")
+    # IA-03: risco calculado ao agendar (recalculado no lembrete de 24h)
+    risco_no_show.aplicar(db, ap)
     criar_lembretes(db, ap)
     return ap
 

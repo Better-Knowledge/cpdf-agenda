@@ -176,6 +176,19 @@ CATALOGO: dict[str, tuple[int, str, dict[str, Any]]] = {
             "retryable": False,
         },
     ),
+    "OFERTA_EXPIRADA": (
+        409,
+        "A janela para aceitar a oferta da fila passou",
+        {
+            "code": "OFERTA_EXPIRADA",
+            "message": "A janela para aceitar esta oferta já passou.",
+            "hint": (
+                "O horário foi oferecido a quem estava atrás na fila. Entre de novo "
+                "com POST /waitlist ou consulte GET /slots para agendar direto."
+            ),
+            "retryable": False,
+        },
+    ),
     "CANAL_NAO_CONFIGURADO": (
         409,
         "A organização ainda não configurou o canal de WhatsApp",

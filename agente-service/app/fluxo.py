@@ -104,6 +104,68 @@ def _propor_remarcacao(org_id: UUID, telefone: str, compromisso: dict) -> Result
     )
 
 
+def _aceitar_oferta(org_id: UUID, telefone: str, texto: str) -> Resultado:
+    """RF-14: o cliente respondeu 'quero' a uma oferta da fila de espera.
+
+    O aceite pode perder a corrida — não há reserva durante a oferta. Quando
+    isso acontece, a agenda devolve as alternativas no próprio erro e o
+    cliente recebe as opções em vez de um silêncio.
+    """
+    status, fila = clientes.agenda("GET", "/waitlist", org_id)
+    if status >= 400 or not isinstance(fila, list):
+        return _para_humano(org_id, telefone, texto, "fila de espera indisponível")
+
+    ofertas = [
+        e for e in fila if e["cliente_telefone"] == telefone and e["status"] == "ofertado"
+    ]
+    if not ofertas:
+        resposta = (
+            "Não encontrei uma oferta de horário em aberto no seu nome. "
+            "Se quiser marcar, me diga o dia e o período que prefere."
+        )
+        clientes.responder(org_id, telefone, resposta)
+        return Resultado(
+            intencao="aceitar_oferta", confianca=1.0, acao="esclarecimento", resposta=resposta
+        )
+
+    entrada = ofertas[0]
+    status, corpo = clientes.agenda("POST", f"/waitlist/{entrada['id']}/aceitar", org_id)
+
+    if status < 400:
+        resposta = f"Pronto! Seu horário está marcado para {corpo['label_humano']}. Até lá!"
+        clientes.responder(org_id, telefone, resposta)
+        return Resultado(
+            intencao="aceitar_oferta", confianca=1.0, acao="agendado", resposta=resposta,
+            detalhes={"appointment_id": corpo["id"]},
+        )
+
+    if corpo.get("code") == "SLOT_INDISPONIVEL":
+        # Perdeu a corrida: o erro já traz as 3 alternativas mais próximas.
+        opcoes = [a["label_humano"] for a in corpo.get("alternativas", [])]
+        if opcoes:
+            resposta = (
+                "Que pena — alguém confirmou esse horário antes. "
+                f"Tenho estes: {', '.join(opcoes)}. Algum serve?"
+            )
+            clientes.responder(org_id, telefone, resposta)
+            return Resultado(
+                intencao="aceitar_oferta", confianca=1.0, acao="proposto", resposta=resposta,
+                detalhes={"alternativas": opcoes},
+            )
+
+    if corpo.get("code") == "OFERTA_EXPIRADA":
+        resposta = (
+            "O prazo dessa oferta já passou e o horário foi oferecido a outra pessoa. "
+            "Quer que eu veja outras opções?"
+        )
+        clientes.responder(org_id, telefone, resposta)
+        return Resultado(
+            intencao="aceitar_oferta", confianca=1.0, acao="esclarecimento", resposta=resposta
+        )
+
+    return _para_humano(org_id, telefone, texto, f"aceite da fila falhou: {corpo.get('code')}")
+
+
 def tratar(org_id: UUID, telefone: str, texto: str) -> Resultado:
     compromisso = _proximo_compromisso(org_id, telefone)
     contexto = (
@@ -163,8 +225,11 @@ def tratar(org_id: UUID, telefone: str, texto: str) -> Resultado:
         # A classificação de intenção NÃO substitui a confirmação humana (RF-06).
         return _para_humano(org_id, telefone, texto, "cancelamento pedido pelo cliente")
 
-    if intencao.nome in ("duvida", "aceitar_oferta"):
-        return _para_humano(org_id, telefone, texto, f"intenção '{intencao.nome}' precisa de humano")
+    if intencao.nome == "aceitar_oferta":
+        return _aceitar_oferta(org_id, telefone, texto)
+
+    if intencao.nome == "duvida":
+        return _para_humano(org_id, telefone, texto, "dúvida precisa de humano")
 
     # fora_de_contexto: não responde nada — evita conversa paralela com o bot.
     log.info("fora de contexto, sem resposta | tel=%s", telefone)

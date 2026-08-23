@@ -294,6 +294,10 @@ class AppointmentOut(BaseModel):
     status: str = Field(description="agendado | confirmado | cancelado | realizado | no_show")
     origem: str
     risco_no_show: str | None = Field(default=None, description="baixo | medio | alto (IA-03)")
+    risco_detalhe: dict | None = Field(
+        default=None,
+        description="Como o risco foi somado: pontos, fatores e explicação (IA-03 é auditável)",
+    )
     observacoes: str | None = None
     series_id: UUID | None = Field(default=None, description="Presente quando faz parte de uma série (RF-15)")
 
@@ -451,6 +455,75 @@ class RemocaoRegraOut(BaseModel):
 class RemocaoBloqueioOut(BaseModel):
     id: UUID
     removido: bool = Field(description="false = já não existia (remoção é idempotente)")
+
+
+# ── Fila de espera (RF-14) ───────────────────────────────────────────────────
+
+
+class WaitlistIn(BaseModel):
+    """Entrar na fila para uma JANELA, não para um horário: quem quer um
+    horário específico e livre simplesmente agenda."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c",
+                    "cliente_nome": "Paula Andrade",
+                    "cliente_telefone": "+5511998765432",
+                    "janela_inicio": "2026-08-27T12:00:00-03:00",
+                    "janela_fim": "2026-08-27T18:00:00-03:00",
+                }
+            ]
+        }
+    )
+
+    service_id: UUID
+    cliente_nome: str = Field(min_length=1)
+    cliente_telefone: str = Field(
+        min_length=3, description="E.164 no WhatsApp ou tg:<chat_id> no Telegram"
+    )
+    janela_inicio: datetime = Field(description="Começo da janela desejada, ISO 8601 com offset")
+    janela_fim: datetime = Field(description="Fim da janela desejada, ISO 8601 com offset")
+    resource_id: UUID | None = Field(
+        default=None, description="Opcional: só aceita com este profissional/sala"
+    )
+
+    @field_validator("janela_inicio", "janela_fim")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        return exigir_aware(v)
+
+    @model_validator(mode="after")
+    def _ordem(self) -> "WaitlistIn":
+        if self.janela_fim <= self.janela_inicio:
+            raise ValueError("janela_fim precisa ser depois de janela_inicio")
+        return self
+
+
+class WaitlistOut(BaseModel):
+    id: UUID
+    service_id: UUID
+    resource_id: UUID | None
+    cliente_nome: str
+    cliente_telefone: str
+    janela_inicio: datetime
+    janela_fim: datetime
+    janela_humana: str = Field(description="A janela desejada em pt-BR, pronta para falar")
+    status: str = Field(description="aguardando | ofertado | aceito | expirado | cancelado")
+    posicao: int | None = Field(
+        default=None, description="Posição na fila entre os que aguardam o mesmo serviço"
+    )
+    expira_em: datetime | None = Field(
+        default=None, description="Quando a oferta em aberto expira (status=ofertado)"
+    )
+    slot_ofertado: datetime | None = Field(
+        default=None, description="Horário exato proposto pela oferta em aberto"
+    )
+    avisos: list[str] = Field(
+        default_factory=list,
+        description="O que o prestador precisa saber — ex.: cliente em opt-out não recebe oferta",
+    )
 
 
 # ── Canal de WhatsApp (T-09 — proxy para o canal-service) ────────────────────

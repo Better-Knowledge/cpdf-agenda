@@ -290,6 +290,34 @@ table.lista td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
 .selo.no_show { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
 .selo.risco { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
 .selo.serie { background: var(--bg-sunk); color: var(--fg-muted); }
+/* IA-03: a conta do risco fica aberta para quem quiser conferir */
+.risco-composicao {
+  margin: 12px 0;
+  font-size: 13px;
+  background: var(--bg-sunk);
+  border-radius: var(--r-3);
+  padding: 10px 14px;
+}
+.risco-composicao summary {
+  cursor: pointer;
+  font-family: var(--font-sans);
+  color: var(--fg-muted);
+}
+.risco-composicao ul { margin: 8px 0 6px 18px; }
+.risco-composicao li { margin-bottom: 3px; }
+.risco-composicao p { color: var(--fg-muted); margin: 0; }
+
+/* situação na fila de espera (T-06) */
+.selo.fila-aguardando { background: var(--bg-sunk); color: var(--fg-muted); }
+.selo.fila-ofertado { background: rgba(226, 101, 70, 0.12); color: var(--accent); }
+.selo.fila-aceito { background: rgba(79, 122, 90, 0.14); color: var(--success); }
+.selo.fila-expirado { background: rgba(192, 67, 45, 0.12); color: var(--danger); }
+.selo.fila-cancelado {
+  background: var(--bg-sunk);
+  color: var(--fg-soft);
+  text-decoration: line-through;
+}
+
 /* estado da conexão do canal (T-09) */
 .selo.conectado { background: rgba(79, 122, 90, 0.14); color: var(--success); }
 .selo.aguardando_qr { background: rgba(226, 101, 70, 0.12); color: var(--accent); }

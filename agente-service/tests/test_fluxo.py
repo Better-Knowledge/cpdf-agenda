@@ -8,7 +8,7 @@ from app.fluxo import tratar
 from .conftest import COMPROMISSO
 
 ORG = uuid.uuid4()
-TEL = "+5511955554444"
+TEL = "+5511999998888"
 
 
 def test_confirmar_e_automatico(agenda_falsa):
@@ -111,3 +111,68 @@ def test_remarcar_sem_horarios_livres_vai_para_humano(agenda_falsa):
     agenda_falsa.compromisso = COMPROMISSO
     agenda_falsa.slots = []
     assert tratar(ORG, TEL, "quero remarcar").acao == "aguardando_humano"
+
+
+# ── RF-14: aceitar a oferta da fila de espera ────────────────────────────────
+
+
+def test_quero_sozinho_aceita_a_oferta_da_fila(agenda_falsa):
+    """O template da oferta pede exatamente 'quero' — a palavra sozinha
+    precisa bastar, senão o texto que mandamos não funciona."""
+    from .conftest import OFERTA_NA_FILA
+
+    agenda_falsa.compromisso = None
+    agenda_falsa.fila = [OFERTA_NA_FILA]
+    agenda_falsa.aceite = (200, {"id": "novo", "label_humano": "quinta, 27 de agosto, 15h30"})
+
+    resultado = tratar(ORG, TEL, "quero")
+    assert resultado.acao == "agendado"
+    assert "quinta, 27 de agosto, 15h30" in agenda_falsa.respostas[0]
+    assert ("POST", f"/waitlist/{OFERTA_NA_FILA['id']}/aceitar") in agenda_falsa.chamadas
+
+
+def test_aceite_que_perde_a_corrida_devolve_alternativas(agenda_falsa):
+    """Sem reserva durante a oferta, perder é um caso normal — o cliente
+    recebe as 3 opções em vez de um silêncio."""
+    from .conftest import OFERTA_NA_FILA
+
+    agenda_falsa.compromisso = None
+    agenda_falsa.fila = [OFERTA_NA_FILA]
+    agenda_falsa.aceite = (
+        409,
+        {
+            "code": "SLOT_INDISPONIVEL",
+            "alternativas": [
+                {"label_humano": "sexta, 28 de agosto, 9h"},
+                {"label_humano": "sexta, 28 de agosto, 14h"},
+                {"label_humano": "segunda, 31 de agosto, 10h"},
+            ],
+        },
+    )
+
+    resultado = tratar(ORG, TEL, "quero")
+    assert resultado.acao == "proposto"
+    assert "alguém confirmou esse horário antes" in agenda_falsa.respostas[0]
+    assert "sexta, 28 de agosto, 9h" in agenda_falsa.respostas[0]
+
+
+def test_aceite_de_oferta_expirada_explica_sem_culpar_o_cliente(agenda_falsa):
+    from .conftest import OFERTA_NA_FILA
+
+    agenda_falsa.compromisso = None
+    agenda_falsa.fila = [OFERTA_NA_FILA]
+    agenda_falsa.aceite = (409, {"code": "OFERTA_EXPIRADA"})
+
+    resultado = tratar(ORG, TEL, "quero")
+    assert resultado.acao == "esclarecimento"
+    assert "prazo dessa oferta já passou" in agenda_falsa.respostas[0]
+
+
+def test_quero_sem_oferta_em_aberto_nao_inventa_agendamento(agenda_falsa):
+    agenda_falsa.compromisso = None
+    agenda_falsa.fila = []
+
+    resultado = tratar(ORG, TEL, "quero")
+    assert resultado.acao == "esclarecimento"
+    assert "não encontrei uma oferta" in agenda_falsa.respostas[0].lower()
+    assert not any(rota.endswith("/aceitar") for _, rota in agenda_falsa.chamadas)

@@ -93,8 +93,15 @@ export interface Compromisso {
   status: "agendado" | "confirmado" | "cancelado" | "realizado" | "no_show";
   origem: string;
   risco_no_show: string | null;
+  risco_detalhe: { pontos: number; explicacao: string; fatores: FatorRisco[] } | null;
   observacoes: string | null;
   series_id: string | null;
+}
+
+export interface FatorRisco {
+  fator: string;
+  pontos: number;
+  detalhe: string;
 }
 
 export interface Slot {
@@ -118,6 +125,22 @@ export interface Bloqueio {
   inicio: string;
   fim: string;
   motivo: string | null;
+}
+
+export interface FilaEntrada {
+  id: string;
+  service_id: string;
+  resource_id: string | null;
+  cliente_nome: string;
+  cliente_telefone: string;
+  janela_inicio: string;
+  janela_fim: string;
+  janela_humana: string;
+  status: "aguardando" | "ofertado" | "aceito" | "expirado" | "cancelado";
+  posicao: number | null;
+  expira_em: string | null;
+  slot_ofertado: string | null;
+  avisos: string[];
 }
 
 export interface CanalConfig {

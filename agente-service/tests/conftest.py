@@ -28,6 +28,8 @@ def agenda_falsa(monkeypatch):
         def __init__(self):
             self.compromisso: dict | None = None
             self.slots: list[dict] = []
+            self.fila: list[dict] = []
+            self.aceite: tuple[int, dict] | None = None
             self.chamadas: list[tuple[str, str]] = []
             self.respostas: list[str] = []
 
@@ -39,6 +41,10 @@ def agenda_falsa(monkeypatch):
                 return 200, self.slots
             if rota.endswith("/confirm"):
                 return 200, {**(self.compromisso or {}), "status": "confirmado"}
+            if rota == "/waitlist":
+                return 200, self.fila
+            if rota.endswith("/aceitar"):
+                return self.aceite or (200, {**(self.compromisso or {}), "id": "novo"})
             return 200, {}
 
         def responder(self, org_id, telefone, texto):
@@ -53,6 +59,13 @@ def agenda_falsa(monkeypatch):
     monkeypatch.setattr(fluxo.clientes, "responder", falsa.responder)
     return falsa
 
+
+OFERTA_NA_FILA = {
+    "id": "f11a0000-0000-4000-8000-000000000001",
+    "cliente_telefone": "+5511999998888",
+    "status": "ofertado",
+    "slot_ofertado": "2026-08-27T15:30:00-03:00",
+}
 
 COMPROMISSO = {
     "id": "0b6ff65e-4f2a-4c8d-9e1b-3a5c7d9f0e2a",

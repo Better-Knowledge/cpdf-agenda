@@ -3,7 +3,7 @@
   "info": {
     "title": "Agenda Inteligente — agenda-service",
     "description": "Agendamento operado por conversa: slots, agendamento sem double-booking\n(garantido no banco), lembretes via canal de WhatsApp.\n\n## Como usar (o fluxo completo em 4 chamadas)\n\n1. `GET /services` — descubra o `service_id` do que o cliente quer;\n2. `GET /slots?service_id=…&from=…&to=…` — horários realmente livres;\n3. `POST /appointments` — agende com nome + telefone do cliente;\n4. Deu 409 `SLOT_INDISPONIVEL`? As 3 alternativas já vêm no erro — ofereça-as\n   e repita o POST com o horário escolhido.\n\n## Convenções (valem em toda rota)\n\n- **Erros**: sempre `{code, message, hint, retryable}` — o `hint` é escrito\n  para o agente agir; quando possível a saída já vem no payload.\n- **Tempo**: entrada e saída em ISO 8601 **com offset** (America/Sao_Paulo na\n  borda); datetime sem fuso é recusado (`DATA_SEM_FUSO`). Toda saída de\n  horário traz `label_humano` pronto para falar com o cliente.\n- **Idempotência**: escritas aceitam o header `Idempotency-Key` — repetir a\n  chamada com a mesma chave devolve a resposta original, sem duplicar efeito.\n- **Ações irreversíveis** (cancelar) disparadas por agente exigem confirmação\n  humana: a primeira chamada devolve 409 `CONFIRMACAO_NECESSARIA` com prévia e\n  `confirmation_token`; repita com o token após o OK (expira em 5 min).\n- **Dinheiro** trafega como string decimal (`\"80.00\"`); **listagens** paginam\n  por `limit`/`cursor`.\n\n## Autenticação e escopos\n\n`Authorization: Bearer <jwt do Supabase>` (humanos/UI) ou `X-Agent-Key`\n(agentes — fase 1 do conector). Escopos: `agenda:read` (consultar),\n`agenda:write` (criar/alterar), `agenda:cancel` (cancelar). Cada rota declara\no escopo que exige.\n",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "servers": [
     {
@@ -3405,6 +3405,597 @@
         "x-escopo-requerido": "agenda:cancel"
       }
     },
+    "/waitlist": {
+      "post": {
+        "tags": [
+          "fila de espera"
+        ],
+        "summary": "Entra na fila de espera para uma janela de horário",
+        "description": "**Escopo:** `agenda:write`\n\nUse quando o horário desejado está ocupado (RF-14). A fila é por JANELA ('quinta à tarde'), não por horário exato — para um horário livre, agende direto. Quando um cancelamento liberar um horário compatível, o primeiro da fila recebe a oferta pelo canal. **Não há reserva**: o horário segue livre na grade e quem confirmar primeiro leva. Aceita Idempotency-Key.",
+        "operationId": "entrar_waitlist_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido malformado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "DATA_SEM_FUSO": {
+                    "summary": "Horário sem offset de fuso",
+                    "value": {
+                      "code": "DATA_SEM_FUSO",
+                      "message": "'inicio' veio sem offset de fuso horário.",
+                      "hint": "Envie ISO 8601 com offset explícito, ex.: 2026-08-27T15:30:00-03:00.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "fila de espera"
+        ],
+        "summary": "Fila de espera da organização, na ordem de chegada",
+        "description": "**Escopo:** `agenda:read`\n\nPor padrão mostra quem ainda espera (aguardando/ofertado). A posição é por serviço.",
+        "operationId": "listar_waitlist_get",
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Id"
+            }
+          },
+          {
+            "name": "incluir_encerrados",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Também mostra aceito/expirado/cancelado",
+              "default": false,
+              "title": "Incluir Encerrados"
+            },
+            "description": "Também mostra aceito/expirado/cancelado"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WaitlistOut"
+                  },
+                  "title": "Response Listar Waitlist Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Dependência não respondeu — retry é seguro",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "CANAL_INDISPONIVEL": {
+                    "summary": "O canal-service não respondeu",
+                    "value": {
+                      "code": "CANAL_INDISPONIVEL",
+                      "message": "O canal de WhatsApp não respondeu.",
+                      "hint": "Tente de novo em instantes — a operação é segura para repetir.",
+                      "retryable": true
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:read"
+      }
+    },
+    "/waitlist/{entry_id}": {
+      "delete": {
+        "tags": [
+          "fila de espera"
+        ],
+        "summary": "Sai da fila de espera",
+        "description": "**Escopo:** `agenda:write`\n\nIdempotente: sair de novo devolve o mesmo resultado.",
+        "operationId": "sair_waitlist__entry_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
+    "/waitlist/{entry_id}/aceitar": {
+      "post": {
+        "tags": [
+          "fila de espera"
+        ],
+        "summary": "Aceita a oferta e agenda o horário",
+        "description": "**Escopo:** `agenda:write`\n\nAgenda o slot que a oferta propôs, pela MESMA constraint de qualquer agendamento — sem caminho privilegiado. Se o horário já foi tomado (não há reserva durante a oferta), responde 409 SLOT_INDISPONIVEL com as 3 alternativas mais próximas. Oferta expirada responde 409 OFERTA_EXPIRADA.",
+        "operationId": "aceitar_waitlist__entry_id__aceitar_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Repetir a chamada com a mesma chave devolve a resposta original sem duplicar efeito. Obrigatório para agentes; use um UUID novo por intenção."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado nesta organização",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "NAO_ENCONTRADO": {
+                    "summary": "Id não existe nesta organização",
+                    "value": {
+                      "code": "NAO_ENCONTRADO",
+                      "message": "Serviço 6f1e…9c02 não existe nesta organização.",
+                      "hint": "Confira o id — liste o recurso correspondente para obter ids válidos.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito — o hint diz como resolver",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "SLOT_INDISPONIVEL": {
+                    "summary": "Horário ocupado — alternativas já no payload",
+                    "value": {
+                      "code": "SLOT_INDISPONIVEL",
+                      "message": "O horário pedido já está ocupado ou fora da grade.",
+                      "hint": "Ofereça estas alternativas ao cliente: quinta, 27 de agosto, 15h30 · quinta, 27 de agosto, 16h30 · sexta, 28 de agosto, 9h.",
+                      "retryable": false,
+                      "alternativas": [
+                        {
+                          "inicio": "2026-08-27T15:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 15h30"
+                        },
+                        {
+                          "inicio": "2026-08-27T16:30:00-03:00",
+                          "label_humano": "quinta, 27 de agosto, 16h30"
+                        },
+                        {
+                          "inicio": "2026-08-28T09:00:00-03:00",
+                          "label_humano": "sexta, 28 de agosto, 9h"
+                        }
+                      ]
+                    }
+                  },
+                  "OFERTA_EXPIRADA": {
+                    "summary": "A janela para aceitar a oferta da fila passou",
+                    "value": {
+                      "code": "OFERTA_EXPIRADA",
+                      "message": "A janela para aceitar esta oferta já passou.",
+                      "hint": "O horário foi oferecido a quem estava atrás na fila. Entre de novo com POST /waitlist ou consulte GET /slots para agendar direto.",
+                      "retryable": false
+                    }
+                  },
+                  "STATUS_INCOMPATIVEL": {
+                    "summary": "O status atual não permite a ação",
+                    "value": {
+                      "code": "STATUS_INCOMPATIVEL",
+                      "message": "Compromisso está 'cancelado' — não dá para reagendar.",
+                      "hint": "Crie um novo agendamento com POST /appointments.",
+                      "retryable": false
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "agenda:write"
+      }
+    },
     "/canal/config": {
       "get": {
         "tags": [
@@ -4565,6 +5156,19 @@
             ],
             "title": "Risco No Show",
             "description": "baixo | medio | alto (IA-03)"
+          },
+          "risco_detalhe": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risco Detalhe",
+            "description": "Como o risco foi somado: pontos, fatores e explicação (IA-03 é auditável)"
           },
           "observacoes": {
             "anyOf": [
@@ -6013,6 +6617,183 @@
             "resource_id": "6f1e0c2a-8f6e-4b9e-9d3a-0d5b2a7c9c02"
           }
         ]
+      },
+      "WaitlistIn": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "cliente_nome": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Cliente Nome"
+          },
+          "cliente_telefone": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Cliente Telefone",
+            "description": "E.164 no WhatsApp ou tg:<chat_id> no Telegram"
+          },
+          "janela_inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Janela Inicio",
+            "description": "Começo da janela desejada, ISO 8601 com offset"
+          },
+          "janela_fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Janela Fim",
+            "description": "Fim da janela desejada, ISO 8601 com offset"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id",
+            "description": "Opcional: só aceita com este profissional/sala"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "cliente_nome",
+          "cliente_telefone",
+          "janela_inicio",
+          "janela_fim"
+        ],
+        "title": "WaitlistIn",
+        "description": "Entrar na fila para uma JANELA, não para um horário: quem quer um\nhorário específico e livre simplesmente agenda.",
+        "examples": [
+          {
+            "cliente_nome": "Paula Andrade",
+            "cliente_telefone": "+5511998765432",
+            "janela_fim": "2026-08-27T18:00:00-03:00",
+            "janela_inicio": "2026-08-27T12:00:00-03:00",
+            "service_id": "b3f0a1d4-2c5e-4f6a-8b7c-9d0e1f2a3b4c"
+          }
+        ]
+      },
+      "WaitlistOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "cliente_nome": {
+            "type": "string",
+            "title": "Cliente Nome"
+          },
+          "cliente_telefone": {
+            "type": "string",
+            "title": "Cliente Telefone"
+          },
+          "janela_inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Janela Inicio"
+          },
+          "janela_fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Janela Fim"
+          },
+          "janela_humana": {
+            "type": "string",
+            "title": "Janela Humana",
+            "description": "A janela desejada em pt-BR, pronta para falar"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "aguardando | ofertado | aceito | expirado | cancelado"
+          },
+          "posicao": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posicao",
+            "description": "Posição na fila entre os que aguardam o mesmo serviço"
+          },
+          "expira_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expira Em",
+            "description": "Quando a oferta em aberto expira (status=ofertado)"
+          },
+          "slot_ofertado": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Ofertado",
+            "description": "Horário exato proposto pela oferta em aberto"
+          },
+          "avisos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Avisos",
+            "description": "O que o prestador precisa saber — ex.: cliente em opt-out não recebe oferta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "service_id",
+          "resource_id",
+          "cliente_nome",
+          "cliente_telefone",
+          "janela_inicio",
+          "janela_fim",
+          "janela_humana",
+          "status"
+        ],
+        "title": "WaitlistOut"
       }
     },
     "securitySchemes": {
@@ -6054,6 +6835,10 @@
     {
       "name": "recorrência",
       "description": "Séries semanais/quinzenais (RF-15). Cada ocorrência é um compromisso próprio ligado ao `series_id`."
+    },
+    {
+      "name": "fila de espera",
+      "description": "Fila por janela de horário (RF-14). Cancelamento que libera horário compatível oferta ao primeiro da fila pelo canal — **sem reserva**: o horário segue livre e quem confirmar primeiro leva."
     },
     {
       "name": "canal",

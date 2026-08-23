@@ -52,6 +52,10 @@ TEMPLATES = {
     "reagendamento": "Olá {{nome}}! Seu {{servico}} foi remarcado para {{data_hora}}. Qualquer dúvida, é só responder.",
     "cancelamento": "Olá {{nome}}, seu {{servico}} de {{data_hora}} foi cancelado. Se quiser remarcar, é só responder aqui.",
     "aviso_cobranca": "Olá {{nome}}! Consta um pagamento em aberto de {{servico}}. Podemos conversar sobre isso? Responda SAIR para não receber mensagens.",
+    # RF-14: o texto PRECISA dizer que não há reserva — a fila não promete o
+    # que o produto não segura.
+    "fila_oferta": "Oi {{nome}}! Vagou um horário de {{servico}}: {{data_hora}}. Responda 'quero' em até {{minutos}} minutos. Atenção: o horário não fica reservado — quem confirmar primeiro leva. SAIR para não receber mensagens.",
+    "risco_alto": "Oi {{nome}}! Confirma mesmo o seu {{servico}} de {{data_hora}}? Responda 'confirmo' para garantir. Se não puder vir, é só avisar que liberamos para outra pessoa.",
 }
 headers = {"X-Service-Key": os.environ["CANAL_KEY"], "X-Org-Id": os.environ["ORG_ID"]}
 for nome, corpo in TEMPLATES.items():
