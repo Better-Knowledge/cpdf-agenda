@@ -457,6 +457,25 @@ class RemocaoBloqueioOut(BaseModel):
     removido: bool = Field(description="false = já não existia (remoção é idempotente)")
 
 
+# ── Credenciais e papéis ─────────────────────────────────────────────────────
+
+
+class QuemSouOut(BaseModel):
+    """O que esta credencial é e o que ela pode. É o que permite a um agente
+    descobrir sua própria autoridade antes de tentar uma ação que seria
+    recusada — e o que o conector MCP usa para falhar rápido e legível."""
+
+    org_id: UUID
+    nome: str
+    papel: str | None = Field(default=None, description="atendimento | operacao | administrativo")
+    ator: str = Field(description="humano | agente")
+    escopos: list[str]
+    titular: str | None = Field(
+        default=None,
+        description="Cliente em nome de quem a credencial age; ausente em credencial administrativa",
+    )
+
+
 # ── Fila de espera (RF-14) ───────────────────────────────────────────────────
 
 

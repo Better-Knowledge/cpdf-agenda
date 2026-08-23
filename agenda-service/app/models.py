@@ -20,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSTZRANGE, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import DateTime
 
@@ -244,4 +244,60 @@ class IdempotencyKey(Base):
     endpoint: Mapped[str] = mapped_column(Text, primary_key=True)
     resposta: Mapped[dict] = mapped_column(JSONB)
     status_code: Mapped[int] = mapped_column(Integer, default=200)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class AgentCredential(Base):
+    """Credencial de agente — a autoridade que uma integração tem nesta org.
+
+    O `papel` é só o preset que preencheu os escopos na criação; quem manda é
+    a coluna `escopos`, que o administrador ajusta credencial a credencial.
+
+    O token em claro nunca é gravado: guardamos o SHA-256. Entropia de 32
+    bytes aleatórios dispensa bcrypt/argon2 — não há superfície de dicionário,
+    e um hash lento custaria latência em toda requisição. O `prefixo` serve só
+    para a tela identificar a linha; nunca é chave de busca.
+    """
+
+    __tablename__ = "agent_credentials"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID]
+    nome: Mapped[str] = mapped_column(Text)  # "Agente do WhatsApp", "Copiloto da recepção"
+    papel: Mapped[str] = mapped_column(Text)  # atendimento | operacao | administrativo
+    escopos: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    prefixo: Mapped[str] = mapped_column(Text)  # primeiros caracteres, para a UI
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    criada_em: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    ultimo_uso_em: Mapped[datetime | None]
+    revogada_em: Mapped[datetime | None]
+    __table_args__ = (
+        CheckConstraint(
+            "papel in ('atendimento','operacao','administrativo')", name="papel_valido"
+        ),
+    )
+
+
+class AgentAuditLog(Base):
+    """`00` §5.8 — toda ação de agente é rastreável.
+
+    A pergunta que esta tabela existe para responder: "quem cancelou esse
+    horário, o agente ou uma pessoa — e em nome de quem?". Por isso `titular`,
+    que não está no schema do doc base: sem ele não dá para responder a
+    segunda metade.
+    """
+
+    __tablename__ = "agent_audit_log"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    org_id: Mapped[uuid.UUID]
+    mcp_server: Mapped[str] = mapped_column(Text)  # agenda | agenda-admin
+    tool_name: Mapped[str] = mapped_column(Text)  # nome da tool, ou "METODO /rota"
+    client_id: Mapped[uuid.UUID | None]  # agent_credentials.id
+    actor: Mapped[str | None] = mapped_column(Text)  # nome da credencial
+    titular: Mapped[str | None] = mapped_column(Text)  # em nome de qual cliente
+    args_hash: Mapped[str | None] = mapped_column(Text)  # hash, nunca o valor cru
+    resultado: Mapped[str] = mapped_column(Text)  # ok | erro | recusado
+    error_code: Mapped[str | None] = mapped_column(Text)
+    latencia_ms: Mapped[int | None] = mapped_column(Integer)
+    confirmado_por: Mapped[uuid.UUID | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

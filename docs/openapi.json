@@ -4967,6 +4967,92 @@
         },
         "x-escopo-requerido": "agenda:write"
       }
+    },
+    "/credenciais/eu": {
+      "get": {
+        "tags": [
+          "credenciais"
+        ],
+        "summary": "A autoridade desta credencial",
+        "description": "**Escopo:** `nenhum (qualquer credencial autenticada)`\n\nDevolve organização, papel, escopos e — quando for uma credencial de atendimento — o cliente em nome de quem ela age. Consulte antes de assumir que uma operação é permitida: funções administrativas exigem papel `administrativo`, e agentes de atendimento não as alcançam.",
+        "operationId": "quem_sou_credenciais_eu_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuemSouOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "NAO_AUTENTICADO": {
+                    "summary": "Credencial ausente ou inválida",
+                    "value": {
+                      "code": "NAO_AUTENTICADO",
+                      "message": "Credencial ausente ou inválida: nenhum header de credencial presente",
+                      "hint": "Envie `Authorization: Bearer <jwt do Supabase>` ou `X-Agent-Key`.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Escopo insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "ESCOPO_INSUFICIENTE": {
+                    "summary": "A credencial não tem o escopo exigido",
+                    "value": {
+                      "code": "ESCOPO_INSUFICIENTE",
+                      "message": "A credencial não tem o escopo 'agenda:cancel'.",
+                      "hint": "Peça uma credencial com o escopo necessário — cancelamento exige agenda:cancel.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação falhou",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroOut"
+                },
+                "examples": {
+                  "PAYLOAD_INVALIDO": {
+                    "summary": "Corpo ou parâmetros não passaram na validação",
+                    "value": {
+                      "code": "PAYLOAD_INVALIDO",
+                      "message": "Payload inválido: body.cliente_telefone: String should have at least 8 characters",
+                      "hint": "Corrija os campos apontados e repita a chamada com os mesmos dados.",
+                      "retryable": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-escopo-requerido": "nenhum (qualquer credencial autenticada)"
+      }
     }
   },
   "components": {
@@ -5871,6 +5957,64 @@
           "items"
         ],
         "title": "Pagina[ServiceOut]"
+      },
+      "QuemSouOut": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Org Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "papel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Papel",
+            "description": "atendimento | operacao | administrativo"
+          },
+          "ator": {
+            "type": "string",
+            "title": "Ator",
+            "description": "humano | agente"
+          },
+          "escopos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Escopos"
+          },
+          "titular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Titular",
+            "description": "Cliente em nome de quem a credencial age; ausente em credencial administrativa"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "nome",
+          "ator",
+          "escopos"
+        ],
+        "title": "QuemSouOut",
+        "description": "O que esta credencial é e o que ela pode. É o que permite a um agente\ndescobrir sua própria autoridade antes de tentar uma ação que seria\nrecusada — e o que o conector MCP usa para falhar rápido e legível."
       },
       "RecurrenceIn": {
         "properties": {
@@ -6839,6 +6983,10 @@
     {
       "name": "fila de espera",
       "description": "Fila por janela de horário (RF-14). Cancelamento que libera horário compatível oferta ao primeiro da fila pelo canal — **sem reserva**: o horário segue livre e quem confirmar primeiro leva."
+    },
+    {
+      "name": "credenciais",
+      "description": "Papéis e escopos. Um agente de **atendimento** (canal) alcança só o compromisso do cliente que atende; um agente **administrativo** (via MCP) configura a plataforma. Emitir credencial é operação de CLI, nunca de rota."
     },
     {
       "name": "canal",

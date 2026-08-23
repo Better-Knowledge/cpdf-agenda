@@ -1,4 +1,4 @@
-.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente lint openapi up down
+.PHONY: dev-db migrate migrate-canal test test-agenda test-canal test-agente lint openapi credencial credenciais up down
 
 dev-db:            ## sobe Postgres local de desenvolvimento
 	docker compose --profile dev up -d db
@@ -27,6 +27,12 @@ lint:
 
 openapi:           ## exporta o contrato para docs/openapi.json (RF-17)
 	cd agenda-service && uv run python scripts/exportar_openapi.py
+
+credencial:        ## emite credencial de agente: make credencial ORG=<uuid> NOME="Bot" PAPEL=atendimento
+	cd agenda-service && uv run python -m app.admin_cli emitir "$(ORG)" "$(NOME)" "$(PAPEL)"
+
+credenciais:       ## lista as credenciais de uma org: make credenciais ORG=<uuid>
+	cd agenda-service && uv run python -m app.admin_cli listar "$(ORG)"
 
 web-dev:           ## UI em modo dev (proxy para a API local)
 	cd web && npm install && npm run dev
