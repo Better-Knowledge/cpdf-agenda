@@ -1,9 +1,14 @@
-"""T-09 — canal de WhatsApp na UI, por procuração.
+"""T-09 — canal de mensageria na UI, por procuração.
 
 O canal-service nunca é exposto ao navegador (PRD §11): a UI fala com o
 agenda-service, que repassa a chamada com a credencial service-to-service.
 Os erros do canal já seguem o contrato {code, message, hint, retryable} e
 sobem intactos — este router não os traduz, só os transporta.
+
+**Tudo aqui exige `canal:admin`**, inclusive as leituras. A `webhook_url`
+carrega o segredo que autentica o inbound: quem o obtém passa a poder forjar
+mensagem de entrada como qualquer cliente da organização. Isso não é leitura
+de catálogo — é chave da porta.
 """
 
 from typing import Any
@@ -61,10 +66,10 @@ def _proxy(metodo: str, rota: str, cred: Credencial, corpo: Any | None = None) -
     summary="Configuração vigente do canal (sem credenciais)",
     description="Credenciais de driver são write-only e nunca voltam. `configurado=false` não é erro.",
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("canal:admin"),
 )
 def ler_config(cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("GET", "/canal/config", cred)
 
 
@@ -79,10 +84,10 @@ def ler_config(cred: Credencial = Depends(credencial_atual)):
         "que não seja dedicado. Reconfigurar rotaciona o segredo do webhook."
     ),
     responses=respostas("NUMERO_PESSOAL_RECUSADO", "CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("canal:admin"),
 )
 def configurar(dados: CanalConfigIn, cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("POST", "/canal/config", cred, dados.model_dump())
 
 
@@ -97,10 +102,10 @@ def configurar(dados: CanalConfigIn, cred: Credencial = Depends(credencial_atual
         "conectam no painel do fornecedor."
     ),
     responses=respostas("CANAL_NAO_CONFIGURADO", "FALHA_NO_DRIVER", "CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("canal:admin"),
 )
 def conectar(cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("POST", "/canal/conectar", cred)
 
 
@@ -109,10 +114,10 @@ def conectar(cred: Credencial = Depends(credencial_atual)):
     response_model=CanalConexaoOut,
     summary="Estado da conexão instância ↔ WhatsApp",
     responses=respostas("CANAL_NAO_CONFIGURADO", "FALHA_NO_DRIVER", "CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("canal:admin"),
 )
 def status_conexao(cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("GET", "/canal/status", cred)
 
 
@@ -121,10 +126,10 @@ def status_conexao(cred: Credencial = Depends(credencial_atual)):
     response_model=list[CanalTemplateOut],
     summary="Templates de mensagem ativa da organização",
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("canal:admin"),
 )
 def listar_templates(cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("GET", "/canal/templates", cred)
 
 
@@ -138,10 +143,10 @@ def listar_templates(cred: Credencial = Depends(credencial_atual)):
         "versionado (IA-02) — a IA não improvisa mensagem ativa por cliente."
     ),
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("canal:admin"),
 )
 def criar_template(dados: CanalTemplateIn, cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("POST", "/canal/templates", cred, dados.model_dump())
 
 
@@ -150,10 +155,10 @@ def criar_template(dados: CanalTemplateIn, cred: Credencial = Depends(credencial
     response_model=list[CanalOptoutOut],
     summary="Clientes que pediram para não receber mensagem ativa",
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("canal:admin"),
 )
 def listar_optouts(cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("GET", "/canal/optouts", cred)
 
 
@@ -163,8 +168,8 @@ def listar_optouts(cred: Credencial = Depends(credencial_atual)):
     summary="Remove um opt-out (reativa mensagens ativas para o telefone)",
     description="Só com pedido explícito do cliente ao humano. Idempotente.",
     responses=respostas("CANAL_INDISPONIVEL"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("canal:admin"),
 )
 def remover_optout(telefone: str, cred: Credencial = Depends(credencial_atual)):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "canal:admin")
     return _proxy("DELETE", f"/canal/optouts/{telefone}", cred)

@@ -63,7 +63,7 @@ def listar_services(
         "Aceita Idempotency-Key."
     ),
     responses=respostas("NAO_ENCONTRADO"),
-    openapi_extra=operacao("agenda:write", idempotente=True),
+    openapi_extra=operacao("agenda:admin", idempotente=True),
 )
 def criar_service(
     dados: ServiceIn,
@@ -71,8 +71,8 @@ def criar_service(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    exigir_escopo(cred, "agenda:admin")
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     servico = Service(org_id=cred.org_id, **dados.model_dump(exclude={"resource_ids"}))
     db.add(servico)
@@ -82,7 +82,7 @@ def criar_service(
             raise NaoEncontrado("Recurso", str(rid))
         db.add(ServiceResource(service_id=servico.id, resource_id=rid))
     corpo = ServiceOut.model_validate(servico)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
 
@@ -106,7 +106,7 @@ def _carregar(db: Session, cred: Credencial, service_id: UUID) -> Service:
         "quando enviado, substitui os vínculos atuais."
     ),
     responses=respostas("NAO_ENCONTRADO"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:admin"),
 )
 def alterar_service(
     service_id: UUID,
@@ -114,7 +114,7 @@ def alterar_service(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     servico = _carregar(db, cred, service_id)
     mudancas = dados.model_dump(exclude_unset=True, exclude={"resource_ids"})
     for campo, valor in mudancas.items():
@@ -141,14 +141,14 @@ def alterar_service(
         "PATCH {ativo: true}. Idempotente."
     ),
     responses=respostas("NAO_ENCONTRADO"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:admin"),
 )
 def desativar_service(
     service_id: UUID,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     servico = _carregar(db, cred, service_id)
     servico.ativo = False
     db.commit()

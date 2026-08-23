@@ -242,6 +242,9 @@ class IdempotencyKey(Base):
     org_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     chave: Mapped[str] = mapped_column(Text, primary_key=True)
     endpoint: Mapped[str] = mapped_column(Text, primary_key=True)
+    # Parte da chave: `buscar` roda antes das guardas de propriedade, então sem
+    # isto um replay devolveria o corpo gravado por outro cliente.
+    titular: Mapped[str] = mapped_column(Text, primary_key=True, default="")
     resposta: Mapped[dict] = mapped_column(JSONB)
     status_code: Mapped[int] = mapped_column(Integer, default=200)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

@@ -28,7 +28,11 @@ from ..schemas import (
 router = APIRouter(tags=["canal"])
 
 
-def _webhook_url(config: ChannelConfig) -> str:
+def _webhook_url(config: ChannelConfig, *, revelar: bool = False) -> str:
+    """A URL que o driver chama. O `token` nela é o que autentica o inbound:
+    quem o obtém forja mensagem de entrada como qualquer cliente. Por isso ele
+    sai redigido por padrão e só aparece quando alguém pede explicitamente —
+    ao configurar o canal, ou em POST /canal/webhook-url/revelar."""
     cfg = settings()
     driver = obter_driver(config.driver)
     if driver.hospedado_localmente:
@@ -48,9 +52,10 @@ def _webhook_url(config: ChannelConfig) -> str:
     # `instancia` na URL porque nem todo driver se identifica no payload: o
     # update do Telegram não diz de qual bot veio. Não é segredo — quem
     # autentica é o token.
+    token = config.webhook_token if revelar else "***"
     return (
         f"{base}/webhooks/canal/{config.driver}"
-        f"?token={config.webhook_token}&instancia={config.instancia}"
+        f"?token={token}&instancia={config.instancia}"
     )
 
 
@@ -347,7 +352,7 @@ def configurar(
         "driver": config.driver,
         "numero": config.numero,
         "ativo": True,
-        "webhook_url": _webhook_url(config),
+        "webhook_url": _webhook_url(config, revelar=True),
     }
 
 
@@ -404,7 +409,7 @@ def conectar(
 ) -> ConexaoOut:
     config = _config(db, chamador.org_id)
     driver = obter_driver(config.driver)
-    return _estado(config, lambda: driver.conectar(_credenciais(config), _webhook_url(config)))
+    return _estado(config, lambda: driver.conectar(_credenciais(config), _webhook_url(config, revelar=True)))
 
 
 @router.get(
@@ -419,6 +424,32 @@ def status_conexao(
     config = _config(db, chamador.org_id)
     driver = obter_driver(config.driver)
     return _estado(config, lambda: driver.estado_conexao(_credenciais(config)))
+
+
+@router.post(
+    "/canal/webhook-url/revelar",
+    response_model=ConfigOut,
+    summary="Revela a URL de webhook com o segredo",
+    description=(
+        "A `webhook_url` sai redigida nas leituras porque o token nela autentica o "
+        "inbound — quem o tem forja mensagem como qualquer cliente. Use esta rota "
+        "quando precisar colar a URL no painel de um driver manual (Z-API). "
+        "Reconfigurar o canal rotaciona o segredo."
+    ),
+)
+def revelar_webhook_url(
+    chamador: Chamador = Depends(chamador_atual),
+    db: Session = Depends(get_db),
+) -> ConfigOut:
+    config = _config(db, chamador.org_id)
+    return ConfigOut(
+        configurado=True,
+        driver=config.driver,
+        numero=config.numero,
+        instancia=config.instancia,
+        ativo=config.ativo,
+        webhook_url=_webhook_url(config, revelar=True),
+    )
 
 
 @router.get(

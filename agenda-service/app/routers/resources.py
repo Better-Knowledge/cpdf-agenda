@@ -37,7 +37,7 @@ def listar_resources(
     summary="Cadastra um recurso (profissional, sala, equipamento)",
     description="O recurso é o que não pode ser agendado duas vezes no mesmo horário. Aceita Idempotency-Key.",
     responses=respostas(),
-    openapi_extra=operacao("agenda:write", idempotente=True),
+    openapi_extra=operacao("agenda:admin", idempotente=True),
 )
 def criar_resource(
     dados: ResourceIn,
@@ -45,13 +45,13 @@ def criar_resource(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
-    if repetida := idem.buscar(db, cred.org_id, request):
+    exigir_escopo(cred, "agenda:admin")
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     recurso = Resource(org_id=cred.org_id, **dados.model_dump())
     db.add(recurso)
     db.flush()
     corpo = ResourceOut.model_validate(recurso)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo

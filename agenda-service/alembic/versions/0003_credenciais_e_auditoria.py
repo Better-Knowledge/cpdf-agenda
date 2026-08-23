@@ -1,4 +1,4 @@
-"""Credenciais de agente com escopo, e auditoria de ação de agente.
+"""Credenciais de agente com escopo, auditoria, e titular na idempotência.
 
 Por que em tabela e não em variável de ambiente: escopo por credencial só é
 útil se o administrador puder emitir e **revogar** sem redeploy, e a auditoria
@@ -66,6 +66,14 @@ create table agent_audit_log (
 );
 
 create index agent_audit_log_org_data on agent_audit_log (org_id, created_at desc);
+
+-- Titular entra na chave de idempotência. Sem ele, um replay de
+-- Idempotency-Key devolve o corpo gravado por outro cliente: `idem.buscar`
+-- roda ANTES das guardas de propriedade nos handlers, então a checagem nunca
+-- é alcançada. '' = credencial sem titular (operação/administrativo).
+alter table idempotency_keys add column titular text not null default '';
+alter table idempotency_keys drop constraint idempotency_keys_pkey;
+alter table idempotency_keys add primary key (org_id, chave, endpoint, titular);
 """
 
 
@@ -88,3 +96,20 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("drop table if exists agent_audit_log, agent_credentials cascade")
+    # Ordem importa: a PK antiga não admite a mesma (org, chave, endpoint) para
+    # titulares diferentes. Chave de idempotência é cache de resposta — as
+    # linhas por titular são descartáveis, e descartá-las é o que torna o
+    # downgrade possível.
+    #
+    # A RLS de idempotency_keys é `force`, o que vale até para o dono do banco:
+    # sem app.org_id definido, o DELETE não veria linha nenhuma e a PK voltaria
+    # quebrada. Migration é manutenção de schema — suspende a política pelo
+    # tempo da limpeza e devolve exatamente como estava.
+    op.execute("alter table idempotency_keys no force row level security")
+    op.execute("alter table idempotency_keys disable row level security")
+    op.execute("delete from idempotency_keys where titular <> ''")
+    op.execute("alter table idempotency_keys enable row level security")
+    op.execute("alter table idempotency_keys force row level security")
+    op.execute("alter table idempotency_keys drop constraint idempotency_keys_pkey")
+    op.execute("alter table idempotency_keys drop column if exists titular")
+    op.execute("alter table idempotency_keys add primary key (org_id, chave, endpoint)")

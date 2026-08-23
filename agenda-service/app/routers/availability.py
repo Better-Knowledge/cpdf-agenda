@@ -39,7 +39,7 @@ def _exigir_recurso(db: Session, cred: Credencial, resource_id) -> None:
     summary="Adiciona janela de trabalho semanal a um recurso",
     description="dia_semana: 0=segunda … 6=domingo. Horas em hora local America/Sao_Paulo (RF-02). Aceita Idempotency-Key.",
     responses=respostas("NAO_ENCONTRADO"),
-    openapi_extra=operacao("agenda:write", idempotente=True),
+    openapi_extra=operacao("agenda:admin", idempotente=True),
 )
 def criar_rule(
     dados: RuleIn,
@@ -47,15 +47,15 @@ def criar_rule(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     _exigir_recurso(db, cred, dados.resource_id)
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     regra = AvailabilityRule(org_id=cred.org_id, **dados.model_dump())
     db.add(regra)
     db.flush()
     corpo = RuleOut.model_validate(regra)
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
 
@@ -86,7 +86,7 @@ def listar_rules(
     summary="Altera uma janela da grade semanal",
     description="Só os campos enviados mudam. A alteração vale para os slots futuros na hora.",
     responses=respostas("NAO_ENCONTRADO", "PERIODO_INVALIDO"),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:admin"),
 )
 def alterar_rule(
     rule_id: UUID,
@@ -94,7 +94,7 @@ def alterar_rule(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     regra = db.scalar(
         select(AvailabilityRule).where(
             AvailabilityRule.id == rule_id, AvailabilityRule.org_id == cred.org_id
@@ -124,14 +124,14 @@ def alterar_rule(
     ),
     response_model=RemocaoRegraOut,
     responses=respostas(),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:admin"),
 )
 def remover_rule(
     rule_id: UUID,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> dict:
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     removidas = db.execute(
         delete(AvailabilityRule).where(
             AvailabilityRule.id == rule_id, AvailabilityRule.org_id == cred.org_id
@@ -150,14 +150,14 @@ def remover_rule(
     ),
     response_model=RemocaoBloqueioOut,
     responses=respostas(),
-    openapi_extra=operacao("agenda:write"),
+    openapi_extra=operacao("agenda:admin"),
 )
 def remover_block(
     block_id: UUID,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> dict:
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     removidos = db.execute(
         delete(AvailabilityBlock).where(
             AvailabilityBlock.id == block_id, AvailabilityBlock.org_id == cred.org_id
@@ -171,16 +171,20 @@ def remover_block(
     "/availability/blocks",
     response_model=list[BlockOut],
     summary="Bloqueios pontuais vigentes ou futuros",
-    description="Lista bloqueios cujo fim ainda não passou. Filtre por recurso se quiser.",
+    description=(
+        "Lista bloqueios cujo fim ainda não passou. Filtre por recurso se quiser. "
+        "Exige `agenda:operacao`: o motivo do bloqueio é nota interna do prestador "
+        "('cirurgia', 'férias'), não informação de atendimento."
+    ),
     responses=respostas(),
-    openapi_extra=operacao("agenda:read"),
+    openapi_extra=operacao("agenda:operacao"),
 )
 def listar_blocks(
     resource_id: UUID | None = None,
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ) -> list[BlockOut]:
-    exigir_escopo(cred, "agenda:read")
+    exigir_escopo(cred, "agenda:operacao")
     q = select(AvailabilityBlock).where(
         AvailabilityBlock.org_id == cred.org_id,
         text("upper(periodo) >= now()"),
@@ -206,7 +210,7 @@ def listar_blocks(
     summary="Bloqueia um período pontual (feriado, almoço, férias)",
     description="Início e fim em ISO 8601 com offset. O motivo aparece na agenda do dia. Aceita Idempotency-Key.",
     responses=respostas("NAO_ENCONTRADO", "PERIODO_INVALIDO", "DATA_SEM_FUSO"),
-    openapi_extra=operacao("agenda:write", idempotente=True),
+    openapi_extra=operacao("agenda:admin", idempotente=True),
 )
 def criar_block(
     dados: BlockIn,
@@ -214,7 +218,7 @@ def criar_block(
     cred: Credencial = Depends(credencial_atual),
     db: Session = Depends(get_db),
 ):
-    exigir_escopo(cred, "agenda:write")
+    exigir_escopo(cred, "agenda:admin")
     _exigir_recurso(db, cred, dados.resource_id)
     if dados.fim <= dados.inicio:
         raise ApiError(
@@ -222,7 +226,7 @@ def criar_block(
             message="O fim do bloqueio precisa ser depois do início.",
             hint="Inverta os valores ou confira o offset de fuso.",
         )
-    if repetida := idem.buscar(db, cred.org_id, request):
+    if repetida := idem.buscar(db, cred.org_id, request, cred.titular):
         return repetida
     bloco = AvailabilityBlock(
         org_id=cred.org_id,
@@ -239,6 +243,6 @@ def criar_block(
         fim=dados.fim,
         motivo=bloco.motivo,
     )
-    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201)
+    idem.gravar(db, cred.org_id, request, corpo.model_dump(mode="json"), 201, cred.titular)
     db.commit()
     return corpo
